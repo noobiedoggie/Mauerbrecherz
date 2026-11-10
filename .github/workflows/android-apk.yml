@@ -1,0 +1,67 @@
+# Builds the debug APK on GitHub and publishes it:
+#   - as a workflow artifact ("mauerbrecher-debug-apk")
+#   - as a GitHub Release asset, so it can be downloaded straight from a phone
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master, 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the web game
+        run: npm run build
+
+      - name: Create and sync the Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mauerbrecher-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mauerbrecher-debug-apk
+          path: Mauerbrecher-debug.apk
+          if-no-files-found: error
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-build-${{ github.run_number }}
+          name: Mauerbrecher APK (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          body: |
+            Debug APK built from ${{ github.sha }}.
+            On Android: download Mauerbrecher-debug.apk, open it and allow "install unknown apps".
+          files: Mauerbrecher-debug.apk

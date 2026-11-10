@@ -74,3 +74,9 @@ Every number you are likely to tune is in `src/config/`, and each one has a comm
 
 Open the game with `?debug` to get `__game` in the console. `__game.debugState()` shows the live
 state, and `__game.debugInvisible = true` turns detection off while you test layouts.
+
+## Build on GitHub
+
+Every push runs `.github/workflows/android-apk.yml`, which builds the debug APK on GitHub.
+Download it from the **Releases** page (`Mauerbrecher-debug.apk`), or from the run's
+artifacts in the **Actions** tab. You can also start it by hand with "Run workflow".
