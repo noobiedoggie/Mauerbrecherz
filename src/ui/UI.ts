@@ -2,6 +2,9 @@ import { LEVELS, LEVEL_COUNT } from '../config/levels';
 import { TOOLS, toolStatLine } from '../config/tools';
 import type { ToolDef } from '../config/tools';
 import { UPGRADES } from '../config/upgrades';
+import { SKINS } from '../config/skins';
+import type { SkinDef } from '../config/skins';
+import { DAILY, PRODUCTS, getProduct } from '../config/store';
 import type { UpgradeId } from '../config/upgrades';
 import { ASSET_BASE } from '../game/Assets';
 import type { AlertState } from '../game/Detection';
@@ -15,7 +18,7 @@ import { SCREENS_HTML } from './screens';
  * to show and it reports button presses back through `UIActions`.
  */
 
-export type ScreenName = 'loading' | 'menu' | 'hud' | 'shop' | 'walls' | 'spotted' | 'walldown' | 'pause' | 'settings';
+export type ScreenName = 'loading' | 'menu' | 'hud' | 'shop' | 'walls' | 'spotted' | 'walldown' | 'pause' | 'settings' | 'daily';
 
 export interface UIActions {
   play(): void;
@@ -36,6 +39,12 @@ export interface UIActions {
   menu(): void;
   buyTool(id: number): void;
   buyUpgrade(id: UpgradeId): void;
+  buySkin(id: string): void;
+  equipSkin(id: string): void;
+  buyProduct(id: string): void;
+  openDaily(): void;
+  claimDaily(): void;
+  closeDaily(): void;
   shopTab(tab: ShopTab): void;
   equipTool(id: number): void;
   selectLevel(id: number): void;
@@ -45,7 +54,39 @@ export interface UIActions {
   tap(): void;
 }
 
-export type ShopTab = 'tools' | 'body';
+export type ShopTab = 'tools' | 'body' | 'skins' | 'store';
+
+/** Tiny SVG figure in a skin's colours (shop preview). */
+function skinPreview(s: SkinDef): string {
+  const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+  const op = s.opacity ?? 1;
+  const acc = s.accent !== undefined ? hex(s.accent) : '#fff';
+  const extras = (s.accessories ?? [])
+    .map((a) => {
+      switch (a) {
+        case 'mohawk':
+          return `<path d="M28 6l2 -5 2 5 2 -5 2 5 2 -5 2 5z" fill="${acc}"/>`;
+        case 'crown':
+          return `<path d="M26 7l2-6 4 4 4-5 4 5 4-4 2 6z" fill="${acc}"/>`;
+        case 'headband':
+          return `<rect x="25" y="9" width="22" height="3" fill="${acc}"/>`;
+        case 'shades':
+          return `<rect x="27" y="11" width="18" height="4" fill="#050505"/>`;
+        case 'scarf':
+          return `<rect x="25" y="25" width="22" height="5" rx="2" fill="${acc}"/><rect x="40" y="28" width="4" height="9" fill="${acc}"/>`;
+      }
+    })
+    .join('');
+  return `<svg class="skin-svg" viewBox="0 0 72 72" aria-hidden="true">
+    <g opacity="${op}" stroke="#121212" stroke-width="1.5">
+      <circle cx="36" cy="14" r="10" fill="${hex(s.head)}"/>
+      <rect x="25" y="27" width="22" height="26" rx="11" fill="${hex(s.torso)}"/>
+      <circle cx="16" cy="40" r="5" fill="${hex(s.hands)}"/>
+      <circle cx="56" cy="40" r="5" fill="${hex(s.hands)}"/>
+      <ellipse cx="30" cy="64" rx="6" ry="3.5" fill="${hex(s.feet)}"/>
+      <ellipse cx="42" cy="64" rx="6" ry="3.5" fill="${hex(s.feet)}"/>
+    </g>${extras}</svg>`;
+}
 
 const UPGRADE_ICONS: Record<UpgradeId, string> = {
   speed: ICONS.boot,
@@ -111,6 +152,15 @@ export class UI {
         case 'tab':
           this.actions.shopTab(el.dataset.tab as ShopTab);
           break;
+        case 'buyskin':
+          this.actions.buySkin(el.dataset.key!);
+          break;
+        case 'equipskin':
+          this.actions.equipSkin(el.dataset.key!);
+          break;
+        case 'buyproduct':
+          this.actions.buyProduct(el.dataset.key!);
+          break;
         case 'level':
           this.actions.selectLevel(id);
           break;
@@ -153,7 +203,7 @@ export class UI {
   show(name: ScreenName): void {
     this.current = name;
     // Modals keep the screen underneath visible (HUD under pause, menu under settings).
-    const under: ScreenName | null = name === 'pause' ? 'hud' : name === 'settings' ? 'menu' : null;
+    const under: ScreenName | null = name === 'pause' ? 'hud' : name === 'settings' || name === 'daily' ? 'menu' : null;
     this.screens.forEach((el, key) => {
       el.classList.toggle('active', key === name || key === under);
     });
@@ -318,8 +368,59 @@ export class UI {
   renderShop(save: SaveData, tab: ShopTab = this.shopTab): void {
     this.shopTab = tab;
     this.text('shop-coins', formatCoins(save.coins));
-    this.el('tab-tools').classList.toggle('on', tab === 'tools');
-    this.el('tab-body').classList.toggle('on', tab === 'body');
+    for (const t of ['tools', 'body', 'skins', 'store'] as const) this.el(`tab-${t}`).classList.toggle('on', tab === t);
+    if (tab === 'skins') {
+      this.text('shop-sub', 'Looks only, they do not change the game. Tap an owned skin to wear it.');
+      this.el('shop-list').innerHTML = SKINS.map((s) => {
+        const owned = save.skins.includes(s.id);
+        const worn = save.skin === s.id;
+        let action: string;
+        let cls = 'card skin';
+        let act = '';
+        if (worn) {
+          cls += ' equipped';
+          action = `<span class="pill ink">WEARING</span>`;
+        } else if (owned) {
+          cls += ' owned';
+          act = `data-act="equipskin" data-key="${s.id}"`;
+          action = `<span class="pill">OWNED</span>`;
+        } else if (s.unlock === 'coins') {
+          action = `<button class="btn btn-yellow buy${save.coins < (s.price ?? 0) ? ' poor' : ''}" data-act="buyskin" data-key="${s.id}">${ICONS.coin}${formatCoins(s.price ?? 0)}</button>`;
+        } else if (s.unlock === 'premium') {
+          const p = getProduct(s.productId ?? '');
+          action = `<button class="btn btn-yellow buy money" data-act="buyproduct" data-key="${s.productId}">${p?.price ?? ''}</button>`;
+        } else {
+          cls += ' locked';
+          action = `<span class="lockline">${ICONS.gift}<b>DAY 7</b></span>`;
+        }
+        const label = s.unlock === 'premium' ? 'PREMIUM' : s.unlock === 'daily' ? 'DAILY REWARD EXCLUSIVE' : s.unlock === 'free' ? 'DEFAULT' : 'COINS';
+        return `
+        <article class="${cls}" ${act}>
+          <div class="up-icon skin-icon">${skinPreview(s)}</div>
+          <div class="card-body"><h3>${s.name}</h3><div class="label">${label}</div></div>
+          <div class="card-action">${action}</div>
+        </article>`;
+      }).join('');
+      return;
+    }
+    if (tab === 'store') {
+      this.text('shop-sub', 'Support the game. Test build: purchases are free and no money is charged.');
+      this.el('shop-list').innerHTML = PRODUCTS.map((p) => {
+        const done = p.oneTime && (save.purchases.includes(p.id) || (p.skin !== undefined && !p.coins && save.skins.includes(p.skin)));
+        const icon = p.skin && !p.coins ? skinPreview(SKINS.find((s) => s.id === p.skin)!) : p.skin ? ICONS.gift : ICONS.coin;
+        const action = done
+          ? `<span class="pill ink">OWNED</span>`
+          : `<button class="btn btn-yellow buy money" data-act="buyproduct" data-key="${p.id}">${p.price}</button>`;
+        return `
+        <article class="card product${p.tag ? ' tagged' : ''}">
+          ${p.tag ? `<span class="product-tag">${p.tag}</span>` : ''}
+          <div class="up-icon skin-icon">${icon}</div>
+          <div class="card-body"><h3>${p.name}</h3><div class="label">${p.desc}</div></div>
+          <div class="card-action">${action}</div>
+        </article>`;
+      }).join('');
+      return;
+    }
     if (tab === 'body') {
       this.text('shop-sub', 'Upgrade your body. Every level stays bought forever.');
       this.el('shop-list').innerHTML = UPGRADES.map((u) => {
@@ -426,6 +527,49 @@ export class UI {
     (this.el('sp-icon') as HTMLImageElement).src = `${ASSET_BASE}ui_icons/icon_${by === 'mine' ? 'Player' : 'Guard'}.png`;
     this.el('sp-icon').closest('section')!.dataset.by = by;
     this.show('spotted');
+  }
+
+  // ---- daily reward -----------------------------------------------------------
+
+  /** @param day index (0-6) of today's reward; `claimable` false = already claimed today. */
+  renderDaily(day: number, claimable: boolean, skinOwned: boolean): void {
+    this.el('daily-grid').innerHTML = DAILY.map((r, i) => {
+      const state = i < day || (i === day && !claimable) ? 'done' : i === day ? 'today' : '';
+      const skin = r.skin ? SKINS.find((s) => s.id === r.skin) : undefined;
+      const prize = skin && !skinOwned ? `<div class="daily-skin">${skinPreview(skin)}</div><b>SKIN</b>` : `${ICONS.coin}<b>${formatCoins(r.coins)}</b>`;
+      return `<div class="daily-day ${state}${i === 6 ? ' big' : ''}"><span class="label">DAY ${i + 1}</span>${prize}${state === 'done' ? `<i class="tick">${ICONS.check}</i>` : ''}</div>`;
+    }).join('');
+    const btn = this.el('daily-claim') as HTMLButtonElement;
+    btn.textContent = claimable ? 'CLAIM' : 'COME BACK TOMORROW';
+    btn.toggleAttribute('disabled', !claimable);
+    btn.classList.toggle('done', !claimable);
+  }
+
+  setDailyDot(on: boolean): void {
+    this.el('daily-dot').classList.toggle('on', on);
+  }
+
+  /** Simple yes/no dialog over everything. */
+  confirm(title: string, text: string, ok: string): Promise<boolean> {
+    const box = this.el('confirm');
+    this.text('confirm-title', title);
+    this.text('confirm-text', text);
+    this.text('confirm-ok', ok);
+    box.classList.add('show');
+    return new Promise((resolve) => {
+      const done = (v: boolean) => {
+        box.classList.remove('show');
+        okBtn.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        resolve(v);
+      };
+      const okBtn = this.el('confirm-ok');
+      const cancel = this.el('confirm-cancel');
+      const onOk = () => done(true);
+      const onCancel = () => done(false);
+      okBtn.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+    });
   }
 
   /** Red screen flash (tripwire). */

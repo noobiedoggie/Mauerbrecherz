@@ -23,6 +23,7 @@ const menu = /* html */ `
   <header class="row">
     <div class="tag" id="menu-level">WALL 1</div>
     <div class="grow"></div>
+    <button class="btn btn-dark btn-icon gift-btn" data-act="openDaily" aria-label="Daily reward">${ICONS.gift}<i class="dot" id="daily-dot"></i></button>
     <div class="chip coin-chip">${ICONS.coin}<b id="menu-coins">0</b></div>
   </header>
   <div class="menu-title">
@@ -101,6 +102,8 @@ const shop = /* html */ `
   <div class="tabs">
     <button class="tab" data-act="tab" data-tab="tools" id="tab-tools">${ICONS.hammer}TOOLS</button>
     <button class="tab" data-act="tab" data-tab="body" id="tab-body">${ICONS.user}BODY</button>
+    <button class="tab" data-act="tab" data-tab="skins" id="tab-skins">${ICONS.shirt}SKINS</button>
+    <button class="tab" data-act="tab" data-tab="store" id="tab-store">${ICONS.cart}STORE</button>
   </div>
   <p class="sub" id="shop-sub"></p>
   <div class="list" id="shop-list"></div>
@@ -156,6 +159,33 @@ const toggles = (prefix: string) => /* html */ `
   <button class="btn btn-dark" data-act="sound">${ICONS.sound}<span id="${prefix}-sound">SOUND: ON</span></button>
   <button class="btn btn-dark" data-act="vibration">${ICONS.vibrate}<span id="${prefix}-vibration">VIBRATION: ON</span></button>`;
 
+const daily = /* html */ `
+<section class="screen modal" data-screen="daily">
+  <div class="sheet">
+    <div class="stripes thin"></div>
+    <div class="sheet-body">
+      <h2 class="heading">DAILY REWARD</h2>
+      <p class="sub" id="daily-sub">Come back every day. Day 7 unlocks an exclusive skin.</p>
+      <div class="daily-grid" id="daily-grid"></div>
+      <button class="btn btn-play" data-act="claimDaily" id="daily-claim">CLAIM</button>
+      <button class="btn-text" data-act="closeDaily">LATER</button>
+    </div>
+  </div>
+</section>`;
+
+const confirmBox = /* html */ `
+<div class="confirm" id="confirm">
+  <div class="sheet">
+    <div class="stripes thin"></div>
+    <div class="sheet-body">
+      <h2 class="heading" id="confirm-title">CONFIRM</h2>
+      <p class="sub" id="confirm-text"></p>
+      <button class="btn btn-play" id="confirm-ok">OK</button>
+      <button class="btn-text" id="confirm-cancel">CANCEL</button>
+    </div>
+  </div>
+</div>`;
+
 const pause = /* html */ `
 <section class="screen modal" data-screen="pause">
   <div class="sheet">
@@ -184,4 +214,4 @@ const settings = /* html */ `
   </div>
 </section>`;
 
-export const SCREENS_HTML = [loading, menu, hud, shop, walls, spotted, wallDown, pause, settings].join('\n') + '<div id="flash"></div>';
+export const SCREENS_HTML = [loading, menu, hud, shop, walls, spotted, wallDown, daily, pause, settings].join('\n') + confirmBox + '<div id="flash"></div>';

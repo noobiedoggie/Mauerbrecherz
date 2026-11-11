@@ -37,6 +37,9 @@ export const ICONS = {
   wall: svg('<rect x="3" y="4.5" width="18" height="15"/><path d="M3 9.5h18M3 14.5h18M12 4.5v5M7.5 9.5v5M16.5 9.5v5M12 14.5v5"/>'),
   hammer: svg('<path d="M13.5 3.5l7 7-3 3-7-7zM12 9l-8 8 3 3 8-8"/>'),
   stone: svg('<path d="M4 15.5l2.5-6 5-3.5 6 1.5 3 5.5-2 4.5-7 2-5.5-1.5z"/><path d="M9 10.5l3 2.5 4.5-1"/>'),
+  gift: svg('<rect x="3.5" y="9" width="17" height="11.5"/><path d="M2.5 9h19M12 9v11.5"/><path d="M12 9c-1.5-4-6.5-5-6.5-2S9 9 12 9zM12 9c1.5-4 6.5-5 6.5-2S15 9 12 9z"/>'),
+  shirt: svg('<path d="M8.5 3.5L3.5 6.5l2 4 2-1V20.5h9V9.5l2 1 2-4-5-3c-.5 1.8-1.8 2.8-3.5 2.8S9 5.3 8.5 3.5z"/>'),
+  cart: svg('<path d="M2.5 4h3l2.2 11h11l2-8H6.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>'),
   // ---- character upgrades ----
   boot: svg('<path d="M7 3.5h5v8l6.5 3.2a2.5 2.5 0 0 1 1.5 2.3V19H4v-3.5l3-1z"/><path d="M4 19h16M9 8h3M9 11h3"/>'),
   power: svg('<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/>'),

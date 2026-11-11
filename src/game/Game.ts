@@ -6,6 +6,10 @@ import { TOOLS, getTool } from '../config/tools';
 import type { ToolDef } from '../config/tools';
 import { TUNING } from '../config/tuning';
 import { getUpgrade } from '../config/upgrades';
+import { getSkin } from '../config/skins';
+import { DAILY, DAILY_SKIN_DUPLICATE_COINS, getProduct } from '../config/store';
+import { Billing } from './Billing';
+import { applySkin } from './Skins';
 import type { UpgradeId } from '../config/upgrades';
 import { UI } from '../ui/UI';
 import type { UIActions, WallDownInfo } from '../ui/UI';
@@ -55,6 +59,9 @@ export class Game {
   private menuScene = new MenuScene();
   private stones!: Stones;
   private tutorial = new Tutorial();
+  private billing!: Billing;
+  /** The daily reward popup opened by itself once this session. */
+  private dailyShown = false;
   /** Counters the tutorial watches (this attempt). */
   private hitCount = 0;
   private throwCount = 0;
@@ -152,6 +159,7 @@ export class Game {
     this.scene.add(this.effects.group);
 
     this.ui = new UI(uiRoot, this.makeActions());
+    this.billing = new Billing((t, x, ok) => this.ui.confirm(t, x, ok));
     this.input = new Input(this.ui.elements);
     this.input.onHide = () => this.toggleHide();
     this.input.onTool = () => this.cycleTool();
@@ -191,6 +199,7 @@ export class Game {
       if (this.state === 'playing' || this.state === 'won') this.audio.footstep(0.35 + 0.45 * k);
     };
     this.applyUpgrades();
+    applySkin(this.player.body, getSkin(this.save.data.skin));
     this.scene.add(this.player.body.root);
     this.stones = new Stones(this.assets);
     this.stones.onLand = (x, z) => this.onStoneLand(x, z);
@@ -238,6 +247,7 @@ export class Game {
       case 'shop':
       case 'walls':
       case 'settings':
+      case 'daily':
         this.back();
         break;
       case 'spotted':
@@ -283,6 +293,7 @@ export class Game {
       reset: () => {
         void this.save.reset().then(() => {
           this.applyUpgrades();
+          applySkin(this.player.body, getSkin(this.save.data.skin));
           this.player.setTool(getTool(this.save.data.equipped));
           this.ui.setToolIcon(this.player.tool);
           this.loadLevel(1);
@@ -303,6 +314,12 @@ export class Game {
       menu: () => this.toMenuFresh(),
       buyTool: (id) => this.buyTool(id),
       buyUpgrade: (id) => this.buyUpgrade(id),
+      buySkin: (id) => this.buySkin(id),
+      equipSkin: (id) => this.equipSkin(id),
+      buyProduct: (id) => void this.buyProduct(id),
+      openDaily: () => this.openDaily(),
+      claimDaily: () => this.claimDaily(),
+      closeDaily: () => this.ui.show('menu'),
       shopTab: (tab) => this.ui.renderShop(this.save.data, tab),
       equipTool: (id) => this.equipTool(id),
       skipTutorial: () => this.tutorial.skip(),
@@ -361,6 +378,99 @@ export class Game {
     this.audio.buy();
     this.effects.haptic('medium');
     this.equipTool(id);
+  }
+
+  // ---- skins ------------------------------------------------------------------
+
+  private buySkin(id: string): void {
+    const data = this.save.data;
+    const skin = getSkin(id);
+    if (skin.unlock !== 'coins' || data.skins.includes(id) || data.coins < (skin.price ?? 0)) {
+      this.audio.deny();
+      return;
+    }
+    data.coins -= skin.price ?? 0;
+    data.skins.push(id);
+    this.audio.buy();
+    this.effects.haptic('medium');
+    this.equipSkin(id);
+  }
+
+  private equipSkin(id: string): void {
+    const data = this.save.data;
+    if (!data.skins.includes(id)) return;
+    data.skin = id;
+    applySkin(this.player.body, getSkin(id));
+    this.player.body.jump(2.2); // a little twirl of joy in the menu
+    void this.save.flush();
+    if (this.ui.current === 'shop') this.ui.renderShop(data, 'skins');
+  }
+
+  // ---- real-money store (test mode until Google Play Billing is connected) ----
+
+  private async buyProduct(id: string): Promise<void> {
+    const data = this.save.data;
+    const p = getProduct(id);
+    if (!p) return;
+    const alreadyOwned = p.oneTime && (data.purchases.includes(p.id) || (!!p.skin && !p.coins && data.skins.includes(p.skin)));
+    if (alreadyOwned) {
+      this.audio.deny();
+      return;
+    }
+    const ok = await this.billing.purchase(p);
+    if (!ok) return;
+    if (p.coins) data.coins += p.coins;
+    if (p.tool && !data.owned.includes(p.tool)) data.owned.push(p.tool);
+    if (p.skin && !data.skins.includes(p.skin)) data.skins.push(p.skin);
+    if (p.oneTime) data.purchases.push(p.id);
+    this.audio.buy();
+    this.effects.haptic('heavy');
+    if (p.skin) this.equipSkin(p.skin);
+    void this.save.flush();
+    if (this.ui.current === 'shop') this.ui.renderShop(data);
+  }
+
+  // ---- daily reward ---------------------------------------------------------------
+
+  /** Today's reward index and whether it can still be claimed today. */
+  private dailyStatus(): { day: number; claimable: boolean } {
+    const d = this.save.data.daily;
+    const today = localDate(0);
+    if (d.last === today) return { day: (d.next + 6) % 7, claimable: false };
+    // Claimed yesterday (or never): the streak continues. Missed a day: back to day 1.
+    if (d.last === '' || d.last === localDate(-1)) return { day: d.next, claimable: true };
+    return { day: 0, claimable: true };
+  }
+
+  private openDaily(): void {
+    const st = this.dailyStatus();
+    this.ui.renderDaily(st.day, st.claimable, this.save.data.skins.includes('ostberlin'));
+    this.ui.show('daily');
+  }
+
+  private claimDaily(): void {
+    const st = this.dailyStatus();
+    if (!st.claimable) return;
+    const data = this.save.data;
+    const reward = DAILY[st.day];
+    let coins = reward.coins;
+    if (reward.skin) {
+      if (data.skins.includes(reward.skin)) coins += DAILY_SKIN_DUPLICATE_COINS;
+      else {
+        data.skins.push(reward.skin);
+        this.equipSkin(reward.skin);
+      }
+    }
+    data.coins += coins;
+    data.daily = { next: (st.day + 1) % 7, last: localDate(0) };
+    void this.save.flush();
+    this.audio.buy();
+    this.effects.haptic('medium');
+    this.ui.renderDaily(st.day, false, data.skins.includes('ostberlin'));
+    this.ui.setDailyDot(false);
+    const def = getLevel(this.levelId);
+    const prog = this.save.level(this.levelId);
+    this.ui.setMenu(def.id, def.name, prog.hp === null ? 0 : Math.round((1 - prog.hp / def.wallHp) * 100), data.coins);
   }
 
   private buyUpgrade(id: UpgradeId): void {
@@ -488,6 +598,15 @@ export class Game {
     const pct = prog.hp === null ? 0 : Math.round((1 - prog.hp / def.wallHp) * 100);
     this.ui.setMenu(def.id, def.name, pct, this.save.data.coins);
     this.ui.show('menu');
+    // Daily reward: red dot on the gift, and the popup once per session.
+    const daily = this.dailyStatus();
+    this.ui.setDailyDot(daily.claimable);
+    if (daily.claimable && !this.dailyShown) {
+      this.dailyShown = true;
+      window.setTimeout(() => {
+        if (this.state === 'menu' && this.ui.current === 'menu') this.openDaily();
+      }, 700);
+    }
   }
 
   /** Start (or restart) an attempt on the current wall. */
@@ -1118,4 +1237,11 @@ function makeSky(): THREE.Mesh {
   // The sky follows the camera so it never clips.
   sky.onBeforeRender = (_r, _s, camera) => sky.position.copy(camera.position);
   return sky;
+}
+
+/** Local calendar date as YYYY-MM-DD, `offset` days from today. */
+function localDate(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

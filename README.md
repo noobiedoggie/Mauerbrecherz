@@ -12,6 +12,8 @@ while guards patrol with flashlights. Built with Vite, TypeScript and Three.js, 
 - 30 walls. From wall 11 there are buried mines (step on one and the attempt is over) and
   tripwires (a siren calls every guard). From wall 21 guard dogs patrol: they see less far
   but smell you through cover, even when you hide, and run faster than you.
+- Daily rewards (7-day streak, day 7 = exclusive skin), 10 player skins (coins, premium, daily),
+  and a real-money store (coin packs, starter pack, premium skins).
 - An interactive tutorial on wall 1 (move, reach the wall, punch, hide, throw).
 - 6 tools and 6 body upgrades (speed, damage, stealth, quieter hits, mine sense, coin magnet).
 - Raked-sand ground texture and a cinematic sunset main menu.
@@ -65,6 +67,8 @@ src/
     tuning.ts              all global balance and feel numbers (speeds, detection, camera, economy)
     tools.ts               the six tools: damage, speed, noise, price, unlock, animation, sound
     upgrades.ts            the six body upgrades: prices and effect per level
+    skins.ts               player skins: colours, accessories, how each is unlocked
+    store.ts               real-money products and the daily reward calendar
     levels.ts              the thirty walls (21-30 remix 11-20 mirrored, with dogs): HP, guards, routes, cover, coins, searchlight, mines, tripwires
   game/
     Game.ts                renderer, game states, wiring, main loop
@@ -75,6 +79,8 @@ src/
     Hazards.ts             mines, tripwires and warning signs
     Stones.ts              throwable stones: flight, pick-ups, aim preview
     Tutorial.ts            interactive wall-1 tutorial (steps, 3D arrow)
+    Skins.ts               applies a skin (materials + accessories) to the player
+    Billing.ts             real-money purchases (TEST MODE until Google Play Billing is connected)
     Tools.ts               tool attachment and punch poses
     FloatingBody.ts        bouncy procedural animation (hops, squash/stretch, spring-lagged parts)
     Detection.ts           vision cones and the 0-100 detection meter
@@ -116,3 +122,12 @@ state, and `__game.debugInvisible = true` turns detection off while you test lay
 Every push runs `.github/workflows/android-apk.yml`, which builds the debug APK on GitHub.
 Download it from the **Releases** page (`Mauerbrecher-debug.apk`), or from the run's
 artifacts in the **Actions** tab. You can also start it by hand with "Run workflow".
+
+## Monetisation status
+
+- **Daily rewards and skins** work fully (stored in the save).
+- **Real-money store**: runs in TEST MODE. Purchases show a "no money is charged" dialog and
+  grant the item. To take real payments, follow the steps at the top of `src/game/Billing.ts`
+  (create the products in the Google Play Console with the ids in `src/config/store.ts`, add a
+  billing plugin, then set `TEST_MODE` to false).
+- **Ads** (x2 coins after a wall, interstitials) are not added yet.

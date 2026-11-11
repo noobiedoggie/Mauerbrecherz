@@ -2,6 +2,7 @@ import { Preferences } from '@capacitor/preferences';
 import { LEVEL_COUNT } from '../config/levels';
 import { TOOLS } from '../config/tools';
 import { UPGRADES } from '../config/upgrades';
+import { SKINS } from '../config/skins';
 import type { UpgradeId } from '../config/upgrades';
 
 /**
@@ -44,6 +45,13 @@ export interface SaveData {
   upgrades: Record<UpgradeId, number>;
   /** The wall-1 tutorial was finished or skipped. */
   tutorialDone: boolean;
+  /** Owned skin ids and the one being worn. */
+  skins: string[];
+  skin: string;
+  /** Daily reward: index (0-6) of the next reward and the date (YYYY-MM-DD) of the last claim. */
+  daily: { next: number; last: string };
+  /** One-time store products already bought. */
+  purchases: string[];
   sound: boolean;
   vibration: boolean;
 }
@@ -62,6 +70,10 @@ export function freshSave(): SaveData {
     levels: {},
     upgrades: freshUpgrades(),
     tutorialDone: false,
+    skins: ['classic'],
+    skin: 'classic',
+    daily: { next: 0, last: '' },
+    purchases: [],
     sound: true,
     vibration: true,
   };
@@ -96,6 +108,12 @@ function sanitize(raw: Partial<SaveData> | null): SaveData {
   data.upgrades = ups;
   // Players who already beat wall 1 have clearly learned the controls.
   data.tutorialDone = data.tutorialDone === true || !!data.levels[1]?.done;
+  data.skins = Array.isArray(data.skins) ? data.skins.filter((id) => SKINS.some((s) => s.id === id)) : [];
+  if (!data.skins.includes('classic')) data.skins.unshift('classic');
+  if (!data.skins.includes(data.skin)) data.skin = 'classic';
+  const d = data.daily as Partial<SaveData['daily']> | undefined;
+  data.daily = { next: Math.max(0, Math.min(6, Math.floor(Number(d?.next) || 0))), last: typeof d?.last === 'string' ? d.last : '' };
+  data.purchases = Array.isArray(data.purchases) ? data.purchases.filter((p) => typeof p === 'string') : [];
   data.sound = data.sound !== false;
   data.vibration = data.vibration !== false;
   return data;
