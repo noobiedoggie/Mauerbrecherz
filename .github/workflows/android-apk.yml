@@ -1,5 +1,5 @@
 # Builds the debug APK on GitHub and publishes it:
-#   - as a workflow artifact ("mauerbrecher-debug-apk")
+#   - as a workflow artifact ("berlirunner-debug-apk")
 #   - as a GitHub Release asset, so it can be downloaded straight from a phone
 name: Build Android APK
 
@@ -33,7 +33,14 @@ jobs:
       - name: Build the web game
         run: npm run build
 
+      - name: Use the shared debug signing key (so updates install over the old app)
+        run: |
+          mkdir -p ~/.android
+          cp android-keys/debug.keystore ~/.android/debug.keystore
+
       - name: Create and sync the Android project
+        env:
+          APP_VERSION_CODE: ${{ github.run_number }}
         run: |
           npx cap add android
           npx cap sync android
@@ -45,22 +52,22 @@ jobs:
           ./gradlew assembleDebug --no-daemon
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mauerbrecher-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Berlirunner-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mauerbrecher-debug-apk
-          path: Mauerbrecher-debug.apk
+          name: berlirunner-debug-apk
+          path: Berlirunner-debug.apk
           if-no-files-found: error
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-build-${{ github.run_number }}
-          name: Mauerbrecher APK (build ${{ github.run_number }})
+          name: Berlirunner APK (build ${{ github.run_number }})
           target_commitish: ${{ github.sha }}
           prerelease: true
           body: |
             Debug APK built from ${{ github.sha }}.
-            On Android: download Mauerbrecher-debug.apk, open it and allow "install unknown apps".
-          files: Mauerbrecher-debug.apk
+            On Android: download Berlirunner-debug.apk, open it and allow "install unknown apps".
+          files: Berlirunner-debug.apk

@@ -78,10 +78,10 @@ export class Player {
   }
 
   /** Put the player back at the start of a level. */
-  spawn(x: number, z: number): void {
+  spawn(x: number, z: number, yaw = Math.PI): void {
     this.x = x;
     this.z = z;
-    this.yaw = Math.PI;
+    this.yaw = yaw;
     this.speed = 0;
     this.hidden = false;
     this.punching = false;

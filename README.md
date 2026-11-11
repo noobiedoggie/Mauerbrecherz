@@ -1,4 +1,4 @@
-# MAUERBRECHER
+# BERLIRUNNER
 
 Punch through. Don't get seen.
 
@@ -8,6 +8,7 @@ while guards patrol with flashlights. Built with Vite, TypeScript and Three.js, 
 - 20 walls. From wall 11 there are buried mines (step on one and the attempt is over) and
   tripwires (a siren calls every guard).
 - 6 tools and 6 body upgrades (speed, damage, stealth, quieter hits, mine sense, coin magnet).
+- Raked-sand ground texture and a cinematic sunset main menu.
 - Bouncy procedural animation: characters hop, squash and stretch, and their parts wobble on springs.
 - All sounds are synthesised at runtime: concrete impacts per tool, footsteps in the sand,
   evening wind and crickets, guard whistles, a heartbeat when you are being spotted.
@@ -28,6 +29,16 @@ cd android && ./gradlew assembleDebug
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 Install it with `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
+
+To sign local builds with the same key as the GitHub builds (so they update each other),
+copy `android-keys/debug.keystore` to `~/.android/debug.keystore` first.
+
+## Updating the game on a phone
+
+Every push to GitHub builds a new APK (see **Build on GitHub** below). Each build has a higher
+version number and is signed with the shared debug key in `android-keys/`, so a new APK installs
+over the old one as an update and the save is kept. APKs built before that key was added were
+signed with a random key: uninstall that version once before installing a newer one.
 
 ## Play in a browser
 
@@ -60,7 +71,8 @@ src/
     Detection.ts           vision cones and the 0-100 detection meter
     Collision.ts           2D collision and line of sight
     Input.ts               floating joystick, PUNCH, HIDE, tool button, keyboard
-    CameraRig.ts           menu camera, follow camera, shake
+    CameraRig.ts           menu camera (slow orbit), follow camera, shake
+    MenuScene.ts           sunset, sun glow and dust behind the main menu
     Effects.ts             dust, debris, noise rings, damage numbers, haptics
     Audio.ts               Web Audio synth sounds
     Assets.ts              GLB loading and cloning

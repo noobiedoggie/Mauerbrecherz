@@ -43,4 +43,14 @@ if (fs.existsSync(stylesPath)) {
   }
 }
 
+// 5. Version: every GitHub build gets a higher versionCode so Android installs it as an update.
+const code = Number(process.env.APP_VERSION_CODE || 0);
+const gradlePath = path.join('android', 'app', 'build.gradle');
+if (code > 0 && fs.existsSync(gradlePath)) {
+  let gradle = fs.readFileSync(gradlePath, 'utf8');
+  gradle = gradle.replace(/versionCode \d+/, `versionCode ${code}`).replace(/versionName "[^"]*"/, `versionName "1.${code}"`);
+  fs.writeFileSync(gradlePath, gradle);
+  console.log(`[configure-android] versionCode ${code}`);
+}
+
 console.log('[configure-android] portrait lock, full screen and VIBRATE permission applied');

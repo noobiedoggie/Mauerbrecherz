@@ -16,6 +16,7 @@ import type { AlertState, Target } from './Detection';
 import { Effects } from './Effects';
 import { Input } from './Input';
 import { Level } from './Level';
+import { MenuScene } from './MenuScene';
 import { Player } from './Player';
 import { Save } from './Save';
 import { impactHeight } from './Tools';
@@ -34,6 +35,9 @@ type State = 'loading' | 'menu' | 'playing' | 'paused' | 'caught' | 'won';
 
 const SUN_OFFSET = new THREE.Vector3(...TUNING.evening.sunOffset);
 
+/** Where the player idles behind the main menu. */
+const MENU_PLAYER: [number, number, number] = [1.5, 0, 1.7];
+
 export type CaughtBy = 'guard' | 'searchlight' | 'mine';
 
 export class Game {
@@ -45,6 +49,7 @@ export class Game {
   private save = new Save();
   private audio = new GameAudio();
   private effects: Effects;
+  private menuScene = new MenuScene();
   private ui: UI;
   private input: Input;
   private level: Level | null = null;
@@ -94,7 +99,7 @@ export class Game {
     this.renderer.toneMappingExposure = E.exposure;
     this.scene.background = new THREE.Color(E.fogColor);
     this.scene.fog = new THREE.Fog(E.fogColor, E.fogNear, E.fogFar);
-    this.scene.add(makeSky());
+    this.scene.add(makeSky(), this.menuScene.group);
 
     // ---- lighting: hemisphere fill + ONE low sun with shadows ----
     this.scene.add(new THREE.HemisphereLight(E.hemiSky, E.hemiGround, E.hemiIntensity));
@@ -433,6 +438,10 @@ export class Game {
     this.audio.stopAmbience();
     this.ui.clearHint();
     this.rig.setMode('menu');
+    // The player waits at the foot of the wall, facing the camera.
+    const [mx, , mz] = MENU_PLAYER;
+    const cam = TUNING.camera.menuPos;
+    this.player.spawn(mx, mz, Math.atan2(cam[0] - mx, cam[2] - mz) + 0.35);
     const def = getLevel(this.levelId);
     const prog = this.save.level(this.levelId);
     const pct = prog.hp === null ? 0 : Math.round((1 - prog.hp / def.wallHp) * 100);
@@ -777,6 +786,7 @@ export class Game {
     }
 
     this.rig.update(dt, player.x, Math.max(0, player.z));
+    this.menuScene.update(dt, this.rig.menuAmount);
   }
 
   private render(): void {

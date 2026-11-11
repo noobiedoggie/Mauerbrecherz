@@ -1,5 +1,5 @@
 /**
- * MAUERBRECHER - entry point.
+ * BERLIRUNNER - entry point.
  *
  * Fonts are bundled (the Google Fonts files via @fontsource) so the APK works
  * offline: Anton for titles and buttons, Space Grotesk for numbers and

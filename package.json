@@ -1,8 +1,8 @@
 {
-  "name": "mauerbrecher",
+  "name": "berlirunner",
   "private": true,
   "version": "1.0.0",
-  "description": "MAUERBRECHER - a stealthy punch-through-the-Berlin-Wall game (Vite + TypeScript + Three.js + Capacitor)",
+  "description": "BERLIRUNNER - a stealthy punch-through-the-Berlin-Wall game (Vite + TypeScript + Three.js + Capacitor)",
   "type": "module",
   "scripts": {
     "dev": "vite",

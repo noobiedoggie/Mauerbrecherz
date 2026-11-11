@@ -33,6 +33,11 @@ export class CameraRig {
   private pos = new THREE.Vector3();
   private look = new THREE.Vector3();
 
+  /** 1 while the menu camera is fully in use, 0 in game. */
+  get menuAmount(): number {
+    return 1 - smooth(this.blend);
+  }
+
   setBounds(halfWidth: number, depth: number): void {
     this.halfWidth = halfWidth;
     this.depth = depth;
@@ -86,9 +91,16 @@ export class CameraRig {
     const pitch = C.pitchDeg * DEG;
     this.gamePos.set(this.focus.x, Math.sin(pitch) * C.distance, this.focus.z + Math.cos(pitch) * C.distance);
 
-    // Menu pose with a slow drift so the scene behind the menu feels alive.
-    this.menuPos.set(C.menuPos[0] + Math.sin(this.time * 0.25) * 0.5, C.menuPos[1], C.menuPos[2]);
+    // Menu pose: a slow cinematic orbit around the look point.
     this.menuLook.set(C.menuLook[0], C.menuLook[1], C.menuLook[2]);
+    const ox = C.menuPos[0] - C.menuLook[0];
+    const oz = C.menuPos[2] - C.menuLook[2];
+    const a = Math.sin(this.time * 0.09) * 0.2;
+    this.menuPos.set(
+      C.menuLook[0] + ox * Math.cos(a) - oz * Math.sin(a),
+      C.menuPos[1] + Math.sin(this.time * 0.21) * 0.15,
+      C.menuLook[2] + ox * Math.sin(a) + oz * Math.cos(a),
+    );
 
     const target = this.mode === 'game' ? 1 : 0;
     const speed = dt / 0.9; // the move takes 0.9 s

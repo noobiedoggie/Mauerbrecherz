@@ -11,6 +11,7 @@ import type { UpgradeId } from '../config/upgrades';
  * Android, localStorage in the browser).
  */
 
+// Key kept from the first version so existing saves carry over.
 const KEY = 'mauerbrecher.save.v1';
 
 /** Progress on one wall. Survives getting caught, cleared when the wall falls. */

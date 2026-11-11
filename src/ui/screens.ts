@@ -13,7 +13,7 @@ const seg = (id: string, extra = '') => `<div class="seg ${extra}"><i id="${id}"
 const loading = /* html */ `
 <section class="screen loading" data-screen="loading">
   <div class="stripes"></div>
-  <h1 class="title">MAUER<br><span class="hl">BRECHER</span></h1>
+  <h1 class="title">BERLI<br><span class="hl">RUNNER</span></h1>
   ${seg('load-bar', 'big')}
   <div class="label" id="load-label">LOADING</div>
 </section>`;
@@ -25,11 +25,12 @@ const menu = /* html */ `
     <div class="grow"></div>
     <div class="chip coin-chip">${ICONS.coin}<b id="menu-coins">0</b></div>
   </header>
-  <div class="grow"></div>
   <div class="menu-title">
-    <h1 class="title">MAUER<br><span class="hl">BRECHER</span></h1>
+    <div class="kicker">BERLIN · NOVEMBER 1989</div>
+    <h1 class="title">BERLI<br><span class="hl">RUNNER</span></h1>
     <p>Punch through. Don't get seen.</p>
   </div>
+  <div class="grow"></div>
   <div class="panel">
     <div class="stripes thin"></div>
     <div class="panel-body">

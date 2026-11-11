@@ -54,9 +54,9 @@ export const TUNING = {
     /** How quickly a shake dies out (1/s). */
     shakeDecay: 9,
     /** Main menu camera: low, looking up at the wall. */
-    menuPos: [2.6, 1.05, 12.6] as [number, number, number],
-    menuLook: [-0.5, 5.0, 0] as [number, number, number],
-    menuFovDeg: 62,
+    menuPos: [2.8, 1.4, 12.8] as [number, number, number],
+    menuLook: [-0.3, 2.6, 0] as [number, number, number],
+    menuFovDeg: 72,
   },
 
   detection: {
