@@ -104,6 +104,45 @@ export const TUNING = {
     alertStopDist: 2.0,
   },
 
+  /** Chase: what happens when a detection meter reaches 100. */
+  chase: {
+    /** Seconds a chaser must keep you in sight before you are caught. */
+    escapeTime: 3,
+    /** How fast the countdown refills while no chaser sees you (x real time). */
+    refillRate: 0.5,
+    /** A chaser gives up after losing sight of you for this long (s). */
+    giveUpTime: 3.2,
+    /** Chaser speed = min(maxSpeed, patrol speed * speedMul + speedAdd). The player runs 3.5 m/s. */
+    speedMul: 1.4,
+    speedAdd: 0.7,
+    maxSpeed: 3.25,
+    /** Caught instantly when a chaser that sees you gets this close (m). */
+    catchDistance: 0.95,
+    /** Other guards within this radius come to help (investigate the spot). */
+    callRadius: 10,
+    /** Detection meter left after a chaser gives up (still suspicious). */
+    meterAfter: 55,
+  },
+
+  /** Throwable stones (distractions). */
+  stones: {
+    /** Stones at the start of every attempt, and the most you can carry. */
+    start: 3,
+    max: 5,
+    /** Throw distance range (m): quick tap throws `tapRange` straight ahead. */
+    minRange: 2,
+    maxRange: 9.5,
+    tapRange: 6,
+    /** Guards inside this radius of the landing spot go and look (m). */
+    noise: 7.5,
+    /** How long they look around there (s). */
+    investigateTime: 5,
+    /** One fallen wall chunk in N leaves a stone you can pick up. */
+    chunkStoneEvery: 3,
+    /** Pick-up distance (m). */
+    pickup: 0.75,
+  },
+
   wall: {
     /** Chunks whose centre is below this height belong to the hole (m). */
     holeMaxHeight: 3.6,

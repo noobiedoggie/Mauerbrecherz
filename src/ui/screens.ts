@@ -69,6 +69,12 @@ const hud = /* html */ `
     <div class="grow"></div>
     <div class="chip timer" id="hud-timer">0:00</div>
   </div>
+  <div class="chase" id="hud-chase">
+    <span class="chase-title">RUN!</span>
+    <b id="hud-chase-time">3.0</b>
+    <div class="seg chase-bar"><i id="hud-chase-bar"></i></div>
+    <span class="label" id="hud-chase-sub">BREAK LINE OF SIGHT</span>
+  </div>
   <div class="hint" id="hud-hint"></div>
 
   <div class="joy-zone" id="joy-zone">
@@ -76,6 +82,7 @@ const hud = /* html */ `
   </div>
 
   <button class="btn btn-dark tool-btn" id="btn-tool" aria-label="Next tool"><img id="hud-tool-icon" alt=""></button>
+  <button class="btn btn-dark throw-btn" id="btn-throw" aria-label="Throw a stone">${ICONS.stone}<span class="badge" id="hud-stones">3</span><span class="throw-label">THROW</span></button>
   <button class="btn btn-dark hide-btn" id="btn-hide">${ICONS.eyeOff}<span id="hud-hide-label">HIDE</span></button>
   <button class="punch-btn" id="btn-punch"><span class="punch-inner">${ICONS.fist}<span>PUNCH</span></span></button>
 </section>`;

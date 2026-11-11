@@ -5,6 +5,10 @@ Punch through. Don't get seen.
 A stealth game for Android, set at dusk: punch a hole through one segment of the Berlin Wall
 while guards patrol with flashlights. Built with Vite, TypeScript and Three.js, and packaged with Capacitor.
 
+- Getting spotted starts a chase: you have 3 seconds of being seen before you are caught.
+  Break line of sight (cover, hiding, distance) and the guard gives up.
+- Throwable stones: tap THROW to throw ahead, or hold and drag to aim. Guards near the landing
+  spot go and look. Pick stones back up, and collect the ones fallen wall chunks leave.
 - 20 walls. From wall 11 there are buried mines (step on one and the attempt is over) and
   tripwires (a siren calls every guard).
 - 6 tools and 6 body upgrades (speed, damage, stealth, quieter hits, mine sense, coin magnet).
@@ -43,7 +47,7 @@ signed with a random key: uninstall that version once before installing a newer 
 ## Play in a browser
 
 `npm run dev`, then open the URL it prints. Use the phone layout in devtools (390 x 844).
-Keyboard: WASD or the arrow keys to move, Space to punch, H to hide, T to change tool, Esc to pause.
+Keyboard: WASD or the arrow keys to move, Space to punch, H to hide, F to throw a stone, T to change tool, Esc to pause.
 
 ## Project layout
 
@@ -66,6 +70,7 @@ src/
     Guard.ts               patrol, investigate, vision cone, searchlight
     Wall.ts                breakable segment: fracture swap, chunk removal, rubble, decals
     Hazards.ts             mines, tripwires and warning signs
+    Stones.ts              throwable stones: flight, pick-ups, aim preview
     Tools.ts               tool attachment and punch poses
     FloatingBody.ts        bouncy procedural animation (hops, squash/stretch, spring-lagged parts)
     Detection.ts           vision cones and the 0-100 detection meter
@@ -92,6 +97,8 @@ Every number you are likely to tune is in `src/config/`, and each one has a comm
   Time to break a wall is `wallHp / (damage * hitsPerSec)`.
 - **Walls** (`levels.ts`): `wallHp`, `guardSpeed`, guard `path` loops, `cover`, `parTime` and `searchlight.period`.
 - **Detection** (`tuning.ts`): `fillNear`, `fillFar`, `drain` and `punchMultiplier` set how forgiving the guards are.
+- **Chase** (`tuning.ts` → `chase`): escape time, chaser speed, give-up time, catch distance.
+- **Stones** (`tuning.ts` → `stones`): starting count, carry limit, throw range, noise radius.
 - **Evening light** (`tuning.ts` → `evening`): sky colours, sun colour/angle, fog and exposure.
 - **Upgrades** (`upgrades.ts`): prices and the effect of each level.
 - **Animation feel** (`game/FloatingBody.ts` → `PLAYER_STYLE`, `GUARD_STYLE`): hop height, squash, spring stiffness.

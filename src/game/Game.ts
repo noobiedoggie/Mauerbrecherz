@@ -17,6 +17,7 @@ import { Effects } from './Effects';
 import { Input } from './Input';
 import { Level } from './Level';
 import { MenuScene } from './MenuScene';
+import { Stones } from './Stones';
 import { Player } from './Player';
 import { Save } from './Save';
 import { impactHeight } from './Tools';
@@ -50,6 +51,7 @@ export class Game {
   private audio = new GameAudio();
   private effects: Effects;
   private menuScene = new MenuScene();
+  private stones!: Stones;
   private ui: UI;
   private input: Input;
   private level: Level | null = null;
@@ -82,6 +84,14 @@ export class Game {
   private qualityTimer = 0;
   private target: Target = { x: 0, z: 0, hidden: false, punching: false, stealth: 1 };
   private jackOn = false;
+  // ---- chase ----
+  /** Seconds left before a chaser catches you (counts down while seen). */
+  private chaseT = 0;
+  private chaseActive = false;
+  private lastTick = 0;
+  // ---- stones ----
+  private stoneCount = 0;
+  private chunkCounter = 0;
   private picked: number[] = [];
   private tmp = new THREE.Vector3();
 
@@ -126,6 +136,7 @@ export class Game {
     this.input.onHide = () => this.toggleHide();
     this.input.onTool = () => this.cycleTool();
     this.input.onPause = () => this.onBack();
+    this.input.onThrow = (dx, dy, drag) => this.throwStone(dx, dy, drag);
 
     // Audio may only start after a touch.
     window.addEventListener('pointerdown', () => this.audio.unlock(), { passive: true });
@@ -161,6 +172,9 @@ export class Game {
     };
     this.applyUpgrades();
     this.scene.add(this.player.body.root);
+    this.stones = new Stones(this.assets);
+    this.stones.onLand = (x, z) => this.onStoneLand(x, z);
+    this.scene.add(this.stones.group);
     this.ui.setToolIcon(this.player.tool);
 
     this.loadLevel(this.save.data.currentLevel);
@@ -397,6 +411,7 @@ export class Game {
     const level = new Level(def, this.assets, prog.hp ?? def.wallHp, prog.coinsTaken);
     this.level = level;
     this.scene.add(level.group);
+    this.stones?.reset();
 
     const onState = (s: AlertState) => {
       if (this.state !== 'playing') return;
@@ -464,6 +479,13 @@ export class Game {
     this.player.spawn(def.start[0], def.start[1]);
     for (const g of level.guards) g.meter.reset();
     level.searchlight?.reset();
+    this.chaseActive = false;
+    this.chaseT = TUNING.chase.escapeTime;
+    this.stones.reset();
+    this.stoneCount = TUNING.stones.start;
+    this.chunkCounter = 0;
+    this.ui.setStones(this.stoneCount);
+    this.ui.setChase(null, 1, false);
     this.rig.setMode('game');
     this.ui.show('hud');
     this.input.setEnabled(true);
@@ -531,7 +553,14 @@ export class Game {
     this.audio.impact(tool.sound, power);
     if (hit.firstHit) this.audio.crack();
     if (hit.fallen.length > 0) {
-      for (const p of hit.fallen) this.effects.crumble(p);
+      for (const p of hit.fallen) {
+        this.effects.crumble(p);
+        // Some chunks leave a stone you can pick up and throw.
+        if (++this.chunkCounter % TUNING.stones.chunkStoneEvery === 0) {
+          const sx = level.targetX + Math.max(-1.6, Math.min(1.6, p.x - level.targetX + (Math.random() - 0.5) * 1.2));
+          this.stones.addGround(sx, 2.0 + Math.random() * 0.8, 0.6);
+        }
+      }
       this.audio.crumble();
       this.rig.shake(tool.shake * 1.5 + 0.08);
     }
@@ -565,6 +594,147 @@ export class Game {
     this.attemptCoins += n;
   }
 
+  // ---- chase ----------------------------------------------------------------
+
+  /**
+   * Start chases when a meter fills, run the escape countdown, and decide
+   * whether the player is caught. Returns true when caught (caughtBy is set).
+   */
+  private updateChase(dt: number, level: Level): boolean {
+    const C = TUNING.chase;
+    const player = this.player;
+
+    // A full meter no longer catches you: the guard gives chase instead.
+    for (const g of level.guards) {
+      if (!g.chasing && g.meter.caught) this.startChase(g, level);
+    }
+    const s = level.searchlight;
+    if (s && s.meter.caught) {
+      // The tower calls the nearest guard over.
+      s.meter.value = 45;
+      const free = level.guards.filter((g) => !g.chasing);
+      free.sort((a, b) => a.distanceTo(player.x, player.z) - b.distanceTo(player.x, player.z));
+      if (free[0]) this.startChase(free[0], level);
+      else if (!this.chaseActive) {
+        this.caughtBy = 'searchlight';
+        return true;
+      }
+    }
+
+    const chasers = level.guards.filter((g) => g.chasing);
+    if (chasers.length === 0) {
+      if (this.chaseActive) {
+        // Lost them all.
+        this.chaseActive = false;
+        this.ui.setChase(null, C.escapeTime, false);
+        this.audio.escaped();
+        this.ui.hint('You lost them. Stay out of sight for a bit.', 2.5);
+      }
+      return false;
+    }
+
+    if (!this.chaseActive) {
+      this.chaseActive = true;
+      this.chaseT = C.escapeTime;
+    }
+    const seenNow = chasers.some((g) => g.seesPlayer) || (!!s && s.seesPlayer);
+    if (seenNow) this.chaseT -= dt;
+    else this.chaseT = Math.min(C.escapeTime, this.chaseT + dt * C.refillRate);
+    this.ui.setChase(Math.max(0, this.chaseT), C.escapeTime, seenNow);
+
+    // Countdown ticks: faster as time runs out.
+    if (seenNow) {
+      const every = this.chaseT < 1 ? 0.25 : 0.5;
+      if (this.clock - this.lastTick > every) {
+        this.lastTick = this.clock;
+        this.audio.chaseTick(this.chaseT < 1);
+      }
+    }
+
+    const tackled = chasers.some((g) => g.seesPlayer && g.distanceTo(player.x, player.z) < C.catchDistance);
+    if (this.chaseT <= 0 || tackled) {
+      this.caughtBy = 'guard';
+      return true;
+    }
+    return false;
+  }
+
+  private startChase(g: Level['guards'][number], level: Level): void {
+    const player = this.player;
+    g.startChase(player.x, player.z);
+    // Being chased costs the "never spotted" star.
+    this.save.level(this.levelId).spotted = true;
+    this.audio.chaseStart(Math.max(-1, Math.min(1, (g.x - player.x) / 9)));
+    this.effects.buzz(180);
+    this.rig.shake(0.12);
+    if (!this.chaseActive) this.ui.hint('Spotted! Get out of the light - hide or run behind cover.', 2.5);
+    // Guards nearby come to help.
+    for (const other of level.guards) {
+      if (other !== g && !other.chasing && other.distanceTo(player.x, player.z) < TUNING.chase.callRadius) {
+        other.hearNoise(player.x, player.z, 5);
+      }
+    }
+  }
+
+  // ---- stones ---------------------------------------------------------------
+
+  /** Where a throw with this drag (screen px) lands. */
+  private aimTarget(dx: number, dy: number, drag: number): [number, number] {
+    const S = TUNING.stones;
+    const level = this.level!;
+    const p = this.player;
+    let tx: number;
+    let tz: number;
+    if (drag < 14) {
+      // Quick tap: straight ahead.
+      tx = p.x + Math.sin(p.yaw) * S.tapRange;
+      tz = p.z + Math.cos(p.yaw) * S.tapRange;
+    } else {
+      // Drag: screen right = +X, screen down = +Z (towards the camera).
+      const k = Math.min(1, drag / this.input.maxAimDrag);
+      const range = S.minRange + (S.maxRange - S.minRange) * k;
+      tx = p.x + (dx / drag) * range;
+      tz = p.z + (dy / drag) * range;
+    }
+    tx = Math.max(-level.halfWidth + 0.3, Math.min(level.halfWidth - 0.3, tx));
+    tz = Math.max(0.4, Math.min(level.depth - 0.3, tz));
+    return [tx, tz];
+  }
+
+  private throwStone(dx: number, dy: number, drag: number): void {
+    if (this.state !== 'playing') return;
+    const p = this.player;
+    if (p.hidden) {
+      this.ui.hint('Stand up (HIDE) to throw.', 2);
+      return;
+    }
+    if (this.stoneCount <= 0) {
+      this.audio.deny();
+      this.ui.hint('No stones. Pick some up: thrown stones and wall chunks.', 2.5);
+      return;
+    }
+    const [tx, tz] = this.aimTarget(dx, dy, drag);
+    this.stoneCount--;
+    this.ui.setStones(this.stoneCount);
+    p.throwAt(Math.atan2(tx - p.x, tz - p.z));
+    this.stones.throw(p.x, p.z, tx, tz);
+    this.audio.throwWhoosh();
+  }
+
+  /** A thrown stone landed: noise there, nearby guards go and look. */
+  private onStoneLand(x: number, z: number): void {
+    const level = this.level;
+    if (!level || this.state !== 'playing') return;
+    const S = TUNING.stones;
+    const pan = Math.max(-1, Math.min(1, (x - this.player.x) / 8));
+    this.audio.stoneLand(pan, 0.6 + 0.4 * Math.max(0, 1 - Math.hypot(x - this.player.x, z - this.player.z) / 12));
+    this.effects.noiseRing(x, z, S.noise);
+    this.effects.hit(this.tmp.set(x, 0.15, z), 0.2);
+    for (const g of level.guards) {
+      if (g.distanceTo(x, z) <= S.noise) g.hearNoise(x, z, S.investigateTime);
+    }
+  }
+
   /** Stepped on a mine. */
   private onMine(x: number, z: number): void {
     if (this.state !== 'playing') return;
@@ -596,6 +766,9 @@ export class Game {
     this.player.setCaught();
     for (const g of level.guards) g.freeze(this.player.x, this.player.z);
     if (by !== 'mine') this.audio.caught();
+    this.chaseActive = false;
+    this.ui.setChase(null, 1, false);
+    this.stones.setAim(false);
     this.audio.setJackhammer(false);
     this.jackOn = false;
     this.audio.stopAmbience();
@@ -723,27 +896,37 @@ export class Game {
     t.punching = player.punching;
     const seen = playing && !this.debugInvisible ? t : null;
     let detection = 0;
-    let caught = false;
-    let bySearchlight = false;
     for (const g of level.guards) {
       g.update(dt, seen, level.colliders);
       detection = Math.max(detection, g.meter.value);
-      if (g.meter.caught) caught = true;
     }
     if (level.searchlight) {
       const s = level.searchlight;
       s.update(dt, seen, level.colliders, this.state === 'caught' || this.state === 'won');
       detection = Math.max(detection, s.meter.value);
-      if (s.meter.caught && !caught) {
-        caught = true;
-        bySearchlight = true;
-      }
     }
+    let caught = false;
+    if (playing) caught = this.updateChase(dt, level);
 
     // ---- world ----
     level.wall.update(dt);
     level.updateCoins(dt, player.x, player.z, playing, this.picked, this.up('magnet'));
     level.hazards.update(dt, player.x, player.z, this.up('detector'), playing);
+
+    // ---- stones: flight, pick-ups, aiming ----
+    const room = TUNING.stones.max - this.stoneCount;
+    const got = this.stones.update(dt, player.x, player.z, playing, room);
+    if (got > 0) {
+      this.stoneCount += got;
+      this.audio.pickStone();
+      this.effects.popText(`+${got} STONE`, this.tmp.set(player.x, 2.3, player.z), 'coin');
+    }
+    if (playing && this.input.aiming && this.stoneCount > 0 && !player.hidden) {
+      const [tx, tz] = this.aimTarget(this.input.aimDX, this.input.aimDY, Math.hypot(this.input.aimDX, this.input.aimDY));
+      this.stones.setAim(true, player.x, player.z, tx, tz);
+    } else {
+      this.stones.setAim(false);
+    }
     for (const index of this.picked) {
       const prog = this.save.level(this.levelId);
       prog.coinsTaken |= 1 << index;
@@ -760,8 +943,9 @@ export class Game {
       const state: AlertState = detection >= TUNING.detection.alert ? 'alert' : detection >= TUNING.detection.suspicious ? 'suspicious' : 'calm';
       this.ui.setHud(Math.round((1 - level.wall.damage) * 100), this.save.data.coins, detection, state, this.elapsed, level.def.parTime);
       this.ui.setControls(player.inPunchRange, player.canHide, player.hidden);
-      if (caught) this.onCaught(bySearchlight ? 'searchlight' : 'guard');
-      this.audio.updateTension(detection / 100);
+      this.ui.setStones(this.stoneCount);
+      if (caught) this.onCaught(this.caughtBy);
+      this.audio.updateTension(this.chaseActive ? 1 : detection / 100);
       // Jackhammer motor runs while it is chiselling.
       const jack = player.punching && player.tool.style === 'jackhammer';
       if (jack !== this.jackOn) {
@@ -839,6 +1023,9 @@ export class Game {
       coins: this.save.data.coins,
       detection: level ? Math.max(0, ...level.guards.map((g) => g.meter.value), level.searchlight?.meter.value ?? 0) : 0,
       guards: level?.guards.map((g) => ({ x: g.x, z: g.z, yaw: g.yaw, meter: g.meter.value, investigating: g.investigating })),
+      chase: this.chaseActive ? +this.chaseT.toFixed(2) : null,
+      chasers: level?.guards.filter((g) => g.chasing).length ?? 0,
+      stones: this.stoneCount,
       pixelRatio: this.pixelRatio,
       frameMs: this.frameAvg,
       save: this.save.data,

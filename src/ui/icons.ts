@@ -36,6 +36,7 @@ export const ICONS = {
   home: svg('<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>'),
   wall: svg('<rect x="3" y="4.5" width="18" height="15"/><path d="M3 9.5h18M3 14.5h18M12 4.5v5M7.5 9.5v5M16.5 9.5v5M12 14.5v5"/>'),
   hammer: svg('<path d="M13.5 3.5l7 7-3 3-7-7zM12 9l-8 8 3 3 8-8"/>'),
+  stone: svg('<path d="M4 15.5l2.5-6 5-3.5 6 1.5 3 5.5-2 4.5-7 2-5.5-1.5z"/><path d="M9 10.5l3 2.5 4.5-1"/>'),
   // ---- character upgrades ----
   boot: svg('<path d="M7 3.5h5v8l6.5 3.2a2.5 2.5 0 0 1 1.5 2.3V19H4v-3.5l3-1z"/><path d="M4 19h16M9 8h3M9 11h3"/>'),
   power: svg('<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/>'),

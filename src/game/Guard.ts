@@ -19,7 +19,7 @@ import { FloatingBody, GUARD_STYLE } from './FloatingBody';
  *                   left and right.
  */
 
-type Mode = 'patrol' | 'pause' | 'investigate' | 'watch';
+type Mode = 'patrol' | 'pause' | 'investigate' | 'watch' | 'chase';
 
 // Flashlight lens position relative to the guard (from Guard.glb): the cone starts here.
 const LENS_X = -0.4;
@@ -96,6 +96,15 @@ export class Guard {
   private iconMat: THREE.SpriteMaterial;
   private iconPop = 0;
 
+  // ---- chase ----
+  /** Running after the player (meter hit 100). */
+  chasing = false;
+  /** Sees the player this frame. */
+  seesPlayer = false;
+  /** Seconds since a chaser last saw the player. */
+  private lostT = 0;
+  private chaseSpeed: number;
+
   constructor(
     assets: Assets,
     def: GuardDef,
@@ -110,6 +119,8 @@ export class Guard {
     this.path = def.path;
     this.startIndex = def.start ?? 0;
     this.speed = baseSpeed * (def.speedMul ?? 1);
+    const C = TUNING.chase;
+    this.chaseSpeed = Math.min(C.maxSpeed, this.speed * C.speedMul + C.speedAdd);
 
     this.iconMat = new THREE.SpriteMaterial({ map: getIcons().question, depthTest: false, toneMapped: false, fog: false });
     this.icon = new THREE.Sprite(this.iconMat);
@@ -136,6 +147,8 @@ export class Guard {
     this.investigateT = 0;
     this.frozen = false;
     this.alarmed = false;
+    this.chasing = false;
+    this.seesPlayer = false;
     this.icon.visible = false;
     this.cone.setAlert(0);
     this.body.resetPose();
@@ -144,7 +157,7 @@ export class Guard {
 
   /** A punch landed at (nx, nz) and this guard is inside its noise radius. */
   hearNoise(nx: number, nz: number, seconds = TUNING.guard.investigateTime): void {
-    if (this.frozen) return;
+    if (this.frozen || this.chasing) return;
     this.noiseX = nx;
     this.noiseZ = nz;
     this.investigateT = Math.max(this.investigateT, seconds);
@@ -155,8 +168,38 @@ export class Guard {
   freeze(lookX: number, lookZ: number, alarmed = true): void {
     this.frozen = true;
     this.alarmed = alarmed;
+    this.chasing = false;
     this.lastSeenX = lookX;
     this.lastSeenZ = lookZ;
+  }
+
+  /** Start running after the player, from where they were last seen. */
+  startChase(x: number, z: number): void {
+    if (this.frozen) return;
+    this.chasing = true;
+    this.mode = 'chase';
+    this.lastSeenX = x;
+    this.lastSeenZ = z;
+    this.lostT = 0;
+    this.meter.value = 100;
+    this.iconPop = 1;
+    this.body.jump(3.6);
+  }
+
+  /** Lost the player: go and look around the last spot, still suspicious. */
+  private giveUp(): void {
+    this.chasing = false;
+    this.meter.value = TUNING.chase.meterAfter;
+    this.lastState = this.meter.state;
+    this.noiseX = this.lastSeenX;
+    this.noiseZ = this.lastSeenZ;
+    this.investigateT = 3;
+    this.mode = 'investigate';
+  }
+
+  /** Distance to a point. */
+  distanceTo(x: number, z: number): number {
+    return Math.hypot(this.x - x, this.z - z);
   }
 
   get investigating(): boolean {
@@ -177,13 +220,37 @@ export class Guard {
     }
 
     // ---- 1. look ----
+    this.seesPlayer = false;
     if (target) {
       const seen = this.cone.sees(target, colliders, this.x, this.z);
-      this.meter.update(dt, seen, target.punching, target.stealth);
+      this.seesPlayer = seen >= 0;
+      if (this.chasing) {
+        // While chasing the meter stays full; the countdown lives in Game.
+        this.meter.value = 100;
+      } else {
+        this.meter.update(dt, seen, target.punching, target.stealth);
+      }
       if (seen >= 0) {
         this.lastSeenX = target.x;
         this.lastSeenZ = target.z;
       }
+    }
+
+    // ---- chase: run at the last place the player was seen ----
+    if (this.chasing) {
+      this.lostT = this.seesPlayer ? 0 : this.lostT + dt;
+      const dx = this.lastSeenX - this.x;
+      const dz = this.lastSeenZ - this.z;
+      if (Math.hypot(dx, dz) > 0.6) {
+        this.walkTo(this.lastSeenX, this.lastSeenZ, this.chaseSpeed, dt, colliders, G.turnRate * 2.6);
+      } else {
+        // At the spot and nobody there: look around quickly.
+        this.lookT += dt;
+        this.yaw += Math.sin(this.lookT * 3.2) * 2.4 * dt;
+      }
+      if (this.lostT > TUNING.chase.giveUpTime) this.giveUp();
+      this.finish(dt, colliders);
+      return;
     }
     const state = this.meter.state;
     if (state !== this.lastState) {
@@ -306,10 +373,10 @@ export class Guard {
     // "?" over suspicious (or while checking a noise), "!" over alert.
     const state = this.meter.state;
     const icons = getIcons();
-    const show = this.frozen ? this.alarmed : state !== 'calm' || this.mode === 'investigate';
+    const show = this.frozen ? this.alarmed : this.chasing || state !== 'calm' || this.mode === 'investigate';
     this.icon.visible = show;
     if (show) {
-      const alarm = state === 'alert' || this.alarmed;
+      const alarm = state === 'alert' || this.alarmed || this.chasing;
       const map = alarm ? icons.alarm : icons.question;
       if (this.iconMat.map !== map) {
         this.iconMat.map = map;
@@ -319,7 +386,7 @@ export class Guard {
       const s = 0.95 * (1 + this.iconPop * 0.5);
       this.icon.scale.set(s, s, 1);
     }
-    this.cone.setAlert(this.alarmed ? 1 : this.frozen ? 0 : this.meter.heat);
+    this.cone.setAlert(this.alarmed || this.chasing ? 1 : this.frozen ? 0 : this.meter.heat);
   }
 
   /** Copy position/heading to the model and rebuild the flashlight cone. */
@@ -345,6 +412,8 @@ export class Guard {
  */
 export class Searchlight {
   readonly cone: VisionCone;
+  /** The beam is on the player this frame. */
+  seesPlayer = false;
   readonly meter = new DetectionMeter();
   onStateChange: (state: AlertState) => void = () => {};
   private t = 0;
@@ -377,6 +446,7 @@ export class Searchlight {
 
   update(dt: number, target: Target | null, colliders: Collider[], frozen: boolean): void {
     if (!frozen) this.t += dt;
+    this.seesPlayer = false;
     const yaw = this.mid + Math.sin((this.t / this.period) * Math.PI * 2) * this.amp;
     this.cone.update(this.x, this.z, yaw, colliders);
     if (this.head) this.head.rotation.y = yaw;
@@ -384,6 +454,7 @@ export class Searchlight {
     if (target && !frozen) {
       // A hidden player is never revealed by the far-away tower.
       const seen = this.cone.sees(target, colliders, 1e6, 1e6);
+      this.seesPlayer = seen >= 0;
       this.meter.update(dt, seen, target.punching, this.fillMul * target.stealth);
       const state = this.meter.state;
       if (state !== this.lastState) {

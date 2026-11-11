@@ -145,6 +145,7 @@ export class UI {
       punch: this.el('btn-punch'),
       hide: this.el('btn-hide'),
       tool: this.el('btn-tool'),
+      throwBtn: this.el('btn-throw'),
     };
   }
 
@@ -219,6 +220,35 @@ export class UI {
       btn.classList.toggle('ready', canHide || hidden);
       btn.classList.toggle('on', hidden);
       this.el('hud-hide-label').textContent = hidden ? 'STAND' : 'HIDE';
+    }
+  }
+
+  /** Stone count on the THROW button. */
+  setStones(count: number): void {
+    if (!this.changed('stones', String(count))) return;
+    this.text('hud-stones', String(count));
+    this.el('btn-throw').classList.toggle('empty', count === 0);
+  }
+
+  /**
+   * Chase banner. `remaining` = seconds left before being caught, or null
+   * when nobody is chasing. `seen` = a chaser can see the player right now.
+   */
+  setChase(remaining: number | null, max: number, seen: boolean): void {
+    const on = remaining !== null;
+    if (this.changed('chase', String(on))) {
+      this.el('hud-chase').classList.toggle('show', on);
+      this.el('btn-punch').closest('section')!.classList.toggle('chased', on);
+    }
+    if (!on) return;
+    const t = remaining!.toFixed(1);
+    if (this.changed('chaseT', t)) {
+      this.text('hud-chase-time', t);
+      this.el('hud-chase-bar').style.width = `${(remaining! / max) * 100}%`;
+    }
+    if (this.changed('chaseSeen', String(seen))) {
+      this.el('hud-chase').classList.toggle('seen', seen);
+      this.text('hud-chase-sub', seen ? 'THEY SEE YOU - BREAK LINE OF SIGHT' : 'OUT OF SIGHT - KEEP HIDING');
     }
   }
 

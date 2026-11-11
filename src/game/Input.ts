@@ -15,6 +15,8 @@ export interface InputElements {
   punch: HTMLElement;
   hide: HTMLElement;
   tool: HTMLElement;
+  /** THROW button: tap to throw ahead, hold and drag to aim. */
+  throwBtn: HTMLElement;
 }
 
 export class Input {
@@ -26,6 +28,16 @@ export class Input {
 
   onHide: () => void = () => {};
   onTool: () => void = () => {};
+  /** Throw released. (dx, dy) = drag in px (screen axes), `drag` = its length. */
+  onThrow: (dx: number, dy: number, drag: number) => void = () => {};
+
+  /** True while the THROW button is held (aiming). */
+  aiming = false;
+  aimDX = 0;
+  aimDY = 0;
+  private throwId = -1;
+  private throwX = 0;
+  private throwY = 0;
   onPause: () => void = () => {};
 
   private enabled = false;
@@ -101,6 +113,38 @@ export class Input {
       if (this.enabled) this.onTool();
     });
 
+    // ---- throw: hold, drag to aim, release ----
+    const tb = el.throwBtn;
+    tb.addEventListener('pointerdown', (e) => {
+      if (!this.enabled || this.throwId !== -1) return;
+      e.preventDefault();
+      this.throwId = e.pointerId;
+      tb.setPointerCapture(e.pointerId);
+      this.throwX = e.clientX;
+      this.throwY = e.clientY;
+      this.aimDX = 0;
+      this.aimDY = 0;
+      this.aiming = true;
+      tb.classList.add('is-down');
+    });
+    tb.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== this.throwId) return;
+      this.aimDX = e.clientX - this.throwX;
+      this.aimDY = e.clientY - this.throwY;
+    });
+    tb.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== this.throwId) return;
+      const dx = this.aimDX;
+      const dy = this.aimDY;
+      this.releaseThrow();
+      if (this.enabled) this.onThrow(dx, dy, Math.hypot(dx, dy));
+    });
+    const cancelThrow = (e: PointerEvent) => {
+      if (e.pointerId === this.throwId) this.releaseThrow();
+    };
+    tb.addEventListener('pointercancel', cancelThrow);
+    tb.addEventListener('lostpointercapture', cancelThrow);
+
     // ---- keyboard (desktop testing) ----
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
@@ -114,6 +158,7 @@ export class Input {
       if (k === ' ') this.keyPunch = true;
       if (k === 'h') this.onHide();
       if (k === 't') this.onTool();
+      if (k === 'f') this.onThrow(0, 0, 0); // throw straight ahead
     });
     window.addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
@@ -151,6 +196,7 @@ export class Input {
   reset(): void {
     this.releaseJoystick();
     this.releasePunch();
+    this.releaseThrow();
     this.keys.clear();
     this.keyPunch = false;
     this.moveX = 0;
@@ -166,6 +212,17 @@ export class Input {
     this.el.base.style.left = '';
     this.el.base.style.top = '';
     this.moveKnob(0, 0);
+  }
+
+  private releaseThrow(): void {
+    this.throwId = -1;
+    this.aiming = false;
+    this.el.throwBtn.classList.remove('is-down');
+  }
+
+  /** Max drag (px) for a full-range throw. */
+  get maxAimDrag(): number {
+    return Math.max(80, this.el.throwBtn.offsetWidth * 2.2);
   }
 
   private releasePunch(): void {

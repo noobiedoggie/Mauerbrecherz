@@ -8,6 +8,8 @@ import { ToolHolder, applyPose, carryPose, samplePunch } from './Tools';
 import type { PunchPose } from './Tools';
 
 /** What the player needs to know about the level each frame. */
+const THROW_TIME = 0.35;
+
 export interface PlayerWorld {
   colliders: Collider[];
   halfWidth: number;
@@ -60,6 +62,9 @@ export class Player {
   private target: PunchPose = { rx: 0, ry: 0, rz: 0, rRot: 0, lx: 0, ly: 0, lz: 0, twist: 0, lean: 0 };
   private exitStage = 0;
   private exitX = 0;
+  /** Throw animation timer (s) and the direction of the throw. */
+  private throwT = 0;
+  private throwYaw = 0;
 
   constructor(assets: Assets, tool: ToolDef) {
     this.body = new FloatingBody(assets.instance('player'), PLAYER_STYLE);
@@ -113,6 +118,14 @@ export class Player {
     return true;
   }
 
+  /** Play the throw animation towards a heading (radians). */
+  throwAt(yaw: number): void {
+    this.throwT = THROW_TIME;
+    this.throwYaw = yaw;
+    this.cycleT = -1;
+    this.body.jump(1.3);
+  }
+
   /** Caught: parts drift apart. */
   setCaught(): void {
     this.caught = true;
@@ -161,7 +174,7 @@ export class Player {
     // ---- move ----
     const mag = Math.hypot(input.moveX, input.moveY);
     const moving = !this.hidden && mag > P.deadZone;
-    let targetYaw = this.yaw;
+    let targetYaw = this.throwT > 0 ? this.throwYaw : this.yaw;
     if (moving) {
       // Moving always wins over punching: running away must feel instant.
       this.cycleT = -1;
@@ -250,6 +263,17 @@ export class Player {
       (Object.keys(p) as (keyof PunchPose)[]).forEach((key) => {
         p[key] += (this.target[key] - p[key]) * k;
       });
+    }
+    // Throw: the right hand whips up and forward over ~0.35 s.
+    if (this.throwT > 0) {
+      this.throwT = Math.max(0, this.throwT - dt);
+      const k = 1 - this.throwT / THROW_TIME;
+      const up = Math.sin(Math.min(1, k * 1.4) * Math.PI);
+      const p = this.pose;
+      p.ry += up * 0.45;
+      p.rz += (k < 0.4 ? -0.2 : 0.4) * up;
+      p.rRot += (k < 0.4 ? -1.2 : 1.0) * up;
+      p.twist += (k < 0.4 ? -0.3 : 0.35) * up;
     }
     applyPose(this.body, this.pose);
     this.body.shiver = tool.style === 'jackhammer' && this.cycleT >= 0 ? 1 : 0;

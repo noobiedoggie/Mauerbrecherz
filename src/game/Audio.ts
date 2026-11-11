@@ -462,6 +462,45 @@ export class GameAudio {
     });
   }
 
+  // ---- stones and chase ------------------------------------------------------
+
+  /** Throwing arm whoosh. */
+  throwWhoosh(): void {
+    this.burst('bandpass', 600, 0.2, 0.22, { q: 1.4, sweepTo: 2200, attack: 0.05, wet: 0 });
+  }
+
+  /** A stone lands: a clack and a bit of gravel. `pan` -1..1. */
+  stoneLand(pan = 0, volume = 1): void {
+    this.burst('bandpass', 2600, 0.035, 0.5 * volume, { q: 3, pan, wet: 0.25 });
+    this.tone('sine', 900, 500, 0.05, 0.25 * volume, { pan, wet: 0.2 });
+    this.burst('bandpass', 1800, 0.03, 0.3 * volume, { q: 3, pan, delay: 0.09, wet: 0.2 });
+    this.burst('highpass', 3500, 0.12, 0.08 * volume, { pan, delay: 0.03 });
+  }
+
+  /** Picking a stone up. */
+  pickStone(): void {
+    this.burst('bandpass', 2000, 0.04, 0.25, { q: 2.5, wet: 0 });
+    this.tone('sine', 700, 1000, 0.06, 0.1, { wet: 0 });
+  }
+
+  /** Chase starts: whistle blast + a sharp "hit" sting. */
+  chaseStart(pan = 0): void {
+    this.whistle(0.42, pan);
+    this.tone('sawtooth', 220, 110, 0.35, 0.2, { wet: 0.3 });
+    this.tone('square', 330, 165, 0.35, 0.1, { wet: 0.3 });
+  }
+
+  /** Countdown tick while a chaser can see you. */
+  chaseTick(urgent: boolean): void {
+    this.tone('square', urgent ? 1320 : 990, urgent ? 1320 : 990, 0.05, 0.12, { wet: 0 });
+  }
+
+  /** Lost them: a relieved falling whoosh. */
+  escaped(): void {
+    this.burst('bandpass', 1600, 0.6, 0.18, { q: 0.8, sweepTo: 300, attack: 0.05, wet: 0.3 });
+    this.tone('triangle', 660, 440, 0.4, 0.12, { wet: 0.4 });
+  }
+
   // ---- hazards -----------------------------------------------------------------
 
   /** Short electronic tick from a nearby mine. */
