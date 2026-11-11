@@ -1,0 +1,41 @@
+<!-- Berlirunner app icon (108 x 108 dp adaptive-icon canvas; safe zone = circle r33 at the centre). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <defs>
+    <!-- The broken hole at the bottom centre of the wall. -->
+    <clipPath id="wall">
+      <path d="M27 36 H81 V86 H27 Z"/>
+    </clipPath>
+  </defs>
+  <g id="art">
+    <!-- Wall slabs (ink) with seams, and the round pipe on top -->
+    <g clip-path="url(#wall)">
+      <rect x="27" y="36" width="54" height="50" fill="#121212"/>
+      <rect x="44.6" y="36" width="1.4" height="50" fill="#2c2c33"/>
+      <rect x="62.4" y="36" width="1.4" height="50" fill="#2c2c33"/>
+    </g>
+    <rect x="25" y="27" width="58" height="12" rx="6" fill="#121212"/>
+    <rect x="29" y="30" width="50" height="2.2" rx="1.1" fill="#2c2c33"/>
+    <!-- Jagged hole showing the yellow beyond -->
+    <path d="M41 86 L41.5 71 L38.5 66 L43 60 L41.5 53 L48 50 L52 45.5 L57.5 49 L64 47.5 L66.5 54 L70.5 58.5 L67 64.5 L69.5 72 L68 86 Z" fill="#FFC234"/>
+    <!-- Flying chunks -->
+    <path d="M31 47 L36.5 44.5 L37.5 49.5 L32.5 51.5 Z" fill="#121212"/>
+    <path d="M73.5 43.5 L78.5 45.5 L76.5 50 L72 48.5 Z" fill="#121212"/>
+    <path d="M24 57 L28 56 L28.5 59.5 L24.8 60.3 Z" fill="#121212"/>
+    <path d="M80 59 L84 60.5 L82.4 63.8 L79 62.5 Z" fill="#121212"/>
+    <!-- The runner: faceless floating parts, punching through -->
+    <g fill="#F1EDE4" stroke="#121212" stroke-width="1.6">
+      <circle cx="55" cy="56" r="5.2"/>
+      <rect x="49.3" y="63.2" width="11.6" height="15.5" rx="5.8"/>
+      <circle cx="42.6" cy="62.2" r="3.4"/>
+      <circle cx="66.8" cy="70.5" r="3"/>
+      <ellipse cx="51.6" cy="82.6" rx="3.4" ry="1.9"/>
+      <ellipse cx="58.8" cy="82.6" rx="3.4" ry="1.9"/>
+    </g>
+    <!-- Impact burst at the fist -->
+    <g stroke="#FFC234" stroke-width="2" stroke-linecap="square">
+      <path d="M36.5 58.5 L33.5 56.5"/>
+      <path d="M36 62.5 L32.2 62.6"/>
+      <path d="M36.8 66.3 L33.8 68.4"/>
+    </g>
+  </g>
+</svg>

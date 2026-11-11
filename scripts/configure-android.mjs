@@ -67,7 +67,21 @@ if (fs.existsSync(appGradle) && fs.existsSync(keystore)) {
   }
 }
 
-// 6. Version: every GitHub build gets a higher versionCode so Android installs it as an update.
+// 6. App icon and splash screen: copy resources/android/res over the defaults
+//    (made by resources/render.cjs from resources/icon.svg).
+const resSrc = path.join('resources', 'android', 'res');
+const resDst = path.join('android', 'app', 'src', 'main', 'res');
+if (fs.existsSync(resSrc) && fs.existsSync(resDst)) {
+  fs.cpSync(resSrc, resDst, { recursive: true });
+  const bgPath = path.join(resDst, 'values', 'ic_launcher_background.xml');
+  fs.writeFileSync(
+    bgPath,
+    '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#FFC234</color>\n</resources>\n',
+  );
+  console.log('[configure-android] Berlirunner icon and splash applied');
+}
+
+// 7. Version: every GitHub build gets a higher versionCode so Android installs it as an update.
 const code = Number(process.env.APP_VERSION_CODE || 0);
 const gradlePath = path.join('android', 'app', 'build.gradle');
 if (code > 0 && fs.existsSync(gradlePath)) {

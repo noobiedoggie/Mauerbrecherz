@@ -57,6 +57,7 @@ Keyboard: WASD or the arrow keys to move, Space to punch, H to hide, F to throw 
 index.html                 canvas + UI root
 capacitor.config.ts        app id, name, system bars
 scripts/configure-android.mjs  patches the generated Android project after every `cap sync`
+resources/                 app icon (icon.svg) and render.cjs, which makes every Android icon/splash size
 public/assets/             the original GLB models (plus characters/GuardDog.glb), PNG icons and crack decal (unchanged)
 src/
   main.ts                  entry point, fonts
