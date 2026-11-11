@@ -1240,72 +1240,54 @@ img {
 
 /* ---------- chase + throw ---------- */
 
-.chase {
-  align-self: center;
+/* Chase: the detection chip becomes "RUN!" + countdown. */
+.detect .chase-time {
   display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.125rem;
-  padding: 0.375rem 1rem 0.5rem;
-  background: rgba(22, 22, 29, 0.78);
-  border-top: 4px solid var(--red);
-  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
-  pointer-events: none;
-}
-
-.chase.show {
-  display: flex;
-  animation: chase-in 0.25s cubic-bezier(0.2, 1.6, 0.4, 1);
-}
-
-@keyframes chase-in {
-  from {
-    transform: scale(1.6);
-    opacity: 0;
-  }
-}
-
-.chase-title {
-  font-family: 'Anton', Impact, sans-serif;
-  font-size: 1.125rem;
-  letter-spacing: 0.2em;
-  color: var(--red);
-}
-
-.chase b {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 2rem;
-  line-height: 1;
+  font-size: 1.25rem;
+  min-width: 2.5rem;
 }
 
-.chase .chase-bar {
-  width: 9rem;
-  height: 0.5rem;
-}
-
-.chase .chase-bar > i {
-  background: var(--paper);
-}
-
-.chase.seen b {
-  color: var(--red);
-  animation: tick 0.5s steps(2) infinite;
-}
-
-.chase.seen .chase-bar > i {
+.detect.chasing {
   background: var(--red);
+  color: var(--ink);
+  box-shadow: none;
+  animation: none;
 }
 
-.chase .label {
-  color: var(--dim);
-  font-size: 0.5625rem;
+.detect.chasing .label {
+  min-width: 0;
+  font-family: 'Anton', Impact, sans-serif;
+  font-size: 1.125rem;
+  letter-spacing: 0.12em;
 }
 
-@keyframes tick {
-  50% {
-    opacity: 0.55;
-  }
+.detect.chasing .chase-time {
+  display: inline;
+}
+
+.detect.chasing .seg {
+  width: 6rem;
+  background: rgba(18, 18, 18, 0.25);
+}
+
+.detect.chasing .seg > i {
+  background: var(--ink);
+}
+
+/* While a chaser can see you the chip flashes. */
+.detect.chasing.seen {
+  animation: alert-pulse 0.5s steps(2) infinite;
+}
+
+.detect.chasing:not(.seen) {
+  background: #8a2a1b;
+  color: var(--paper);
+}
+
+.detect.chasing:not(.seen) .seg > i {
+  background: var(--paper);
 }
 
 /* Red pulsing edges while being chased. */
@@ -1371,4 +1353,99 @@ img {
 
 .throw-btn.empty .badge {
   color: #6c6a73;
+}
+
+/* ---------- tutorial coach ---------- */
+
+.coach {
+  position: absolute;
+  width: min(19rem, calc(100% - 24px));
+  padding: 0.625rem 0.875rem 0.75rem;
+  background: var(--yellow);
+  color: var(--ink);
+  display: none;
+  flex-direction: column;
+  gap: 0.375rem;
+  z-index: 5;
+  clip-path: none;
+  box-shadow: 0 5px 0 var(--ink);
+}
+
+.coach.show {
+  display: flex;
+  animation: coach-in 0.3s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+
+@keyframes coach-in {
+  from {
+    transform: translateY(0.75rem) scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* Little arrow under the card pointing at the control. */
+.coach.pointing::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--arrow-x, 50%) - 0.625rem);
+  bottom: -0.875rem;
+  border-left: 0.625rem solid transparent;
+  border-right: 0.625rem solid transparent;
+  border-top: 0.875rem solid var(--yellow);
+}
+
+.coach-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.coach-title {
+  flex: 1 1 0;
+  opacity: 0.6;
+}
+
+.coach-skip {
+  min-height: 36px;
+  min-width: 44px;
+  padding: 0 0.625rem;
+  background: var(--ink);
+  color: var(--yellow);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.coach p {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+
+.coach-ring {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  border: 3px solid var(--yellow);
+  box-shadow: 0 0 0 3px var(--ink), 0 0 1.5rem rgba(255, 194, 52, 0.8);
+  z-index: 4;
+}
+
+.coach-ring.round {
+  border-radius: 50%;
+}
+
+.coach-ring.show {
+  display: block;
+  animation: ring-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+  50% {
+    transform: scale(1.08);
+    opacity: 0.6;
+  }
 }

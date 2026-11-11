@@ -411,6 +411,56 @@ export class GameAudio {
     osc.stop(t + 0.45);
   }
 
+  /** Dog bark: a short noisy "woof" (formant-filtered sawtooth + breath). */
+  bark(pan = 0, times = 1, volume = 1): void {
+    if (!this.ready) return;
+    const ctx = this.ctx!;
+    for (let i = 0; i < times; i++) {
+      const t = ctx.currentTime + i * 0.2 + Math.random() * 0.03;
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      const f0 = 240 + Math.random() * 40;
+      osc.frequency.setValueAtTime(f0 * 0.8, t);
+      osc.frequency.linearRampToValueAtTime(f0 * 1.15, t + 0.03);
+      osc.frequency.exponentialRampToValueAtTime(f0 * 0.6, t + 0.14);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.6 * volume, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      const mix = ctx.createGain();
+      for (const [f, q, lvl] of [
+        [700, 4, 1],
+        [1500, 6, 0.6],
+        [2800, 8, 0.25],
+      ] as const) {
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = f;
+        bp.Q.value = q;
+        const lg = ctx.createGain();
+        lg.gain.value = lvl;
+        g.connect(bp).connect(lg).connect(mix);
+      }
+      osc.connect(g);
+      this.out(mix, pan, 0.35);
+      osc.start(t);
+      osc.stop(t + 0.2);
+      this.burst('bandpass', 1200, 0.1, 0.25 * volume, { delay: i * 0.2, q: 1, pan, wet: 0.2 });
+    }
+  }
+
+  /** Dog sniffing (suspicious). */
+  sniff(pan = 0): void {
+    for (let i = 0; i < 3; i++) this.burst('bandpass', 3200, 0.06, 0.14, { delay: i * 0.11, q: 2, pan, attack: 0.02, wet: 0 });
+    this.tone('sine', 520, 600, 0.18, 0.05, { delay: 0.35, pan, wet: 0 });
+  }
+
+  /** Light paw patter (dogs). */
+  pawstep(volume: number, pan = 0): void {
+    if (volume < 0.03) return;
+    this.burst('bandpass', 2400 + Math.random() * 600, 0.03, 0.18 * volume, { q: 1.5, pan, wet: 0 });
+  }
+
   /** Guard "!": a sharp pea-whistle blast. */
   alarm(pan = 0): void {
     this.whistle(0.55, pan);

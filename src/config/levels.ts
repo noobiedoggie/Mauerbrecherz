@@ -37,6 +37,8 @@ export interface GuardDef {
   start?: number;
   /** Per-guard speed multiplier (default 1). */
   speedMul?: number;
+  /** A guard dog instead of a guard (see TUNING.dog). */
+  dog?: boolean;
 }
 
 export interface SearchlightDef {
@@ -1112,6 +1114,128 @@ export const LEVELS: LevelDef[] = [
     start: [-11.4, 14.4],
   },
 ];
+
+// ---------------------------------------------------------------------------
+// WALLS 21-30: guard dogs.
+// Each one remixes the layout of wall (id - 10), mirrored left/right, then
+// adds dogs, more HP and faster patrols.
+// ---------------------------------------------------------------------------
+
+const mx = ([x, z]: Vec2): Vec2 => [x === 0 ? 0 : -x, z];
+
+function remix(
+  baseId: number,
+  id: number,
+  name: string,
+  wallHp: number,
+  dogs: Vec2[][],
+  extra: Partial<LevelDef> = {},
+): LevelDef {
+  const b = LEVELS[baseId - 1];
+  return {
+    ...b,
+    id,
+    name,
+    wallHp,
+    parTime: b.parTime + 25,
+    guardSpeed: Math.min(2.95, b.guardSpeed + 0.15),
+    guards: [
+      ...b.guards.map((g) => ({ ...g, path: g.path.map(mx) })),
+      ...dogs.map((path) => ({ path, dog: true })),
+    ],
+    cover: b.cover.map((c) => ({ ...c, x: c.x === 0 ? 0 : -c.x })),
+    hedgehogs: b.hedgehogs.map(mx),
+    coins: b.coins.map(mx),
+    mines: b.mines?.map(mx),
+    tripwires: b.tripwires?.map(([p0, p1]) => [mx(p0), mx(p1)] as [Vec2, Vec2]),
+    signs: b.signs?.map(mx),
+    start: mx(b.start),
+    ...extra,
+  };
+}
+
+LEVELS.push(
+  remix(11, 21, 'HUNDESTAFFEL', 13500, [
+    [
+      [-7.6, 5.4],
+      [-1.2, 5.4],
+    ],
+  ]),
+  remix(12, 22, 'SPÜRNASE', 14500, [
+    [
+      [-6.5, 5.6],
+      [-2, 5.6],
+    ],
+  ], { start: [-0.2, 13.4] }),
+  remix(13, 23, 'BELLEN', 15500, [
+    [
+      [-4, 4.4],
+      [4, 4.4],
+    ],
+  ], { start: [-12.2, 11.8] }),
+  remix(14, 24, 'DOPPELWACHE', 16500, [
+    [
+      [-3.4, 9.6],
+      [3.4, 9.6],
+    ],
+  ]),
+  remix(15, 25, 'SCHATTENLAUF', 17500, [
+    [
+      [-6.4, 9.2],
+      [6.4, 9.2],
+    ],
+  ], { start: [-12.2, 13.8] }),
+  remix(16, 26, 'KETTENHUND', 18500, [
+    [
+      [-6.4, 4.2],
+      [-6.4, 8.8],
+    ],
+    [
+      [6.4, 8.8],
+      [6.4, 4.2],
+    ],
+  ], { start: [9.4, 13.4] }),
+  remix(17, 27, 'NACHTSCHICHT', 19500, [
+    [
+      [-4.2, 7.6],
+      [4.2, 7.6],
+    ],
+    [
+      [-9, 12.8],
+      [-4, 12.8],
+    ],
+  ], { start: [9.4, 14.4] }),
+  remix(18, 28, 'GRENZSTREIFEN', 20500, [
+    [
+      [-4.6, 4.3],
+      [-4.6, 7.4],
+    ],
+    [
+      [4.6, 7.4],
+      [4.6, 4.3],
+    ],
+  ]),
+  remix(19, 29, 'LETZTER ZUG', 21500, [
+    [
+      [-4, 10.9],
+      [4, 10.9],
+    ],
+    [
+      [-0.2, 5.8],
+      [-0.2, 8.0],
+    ],
+  ]),
+  remix(20, 30, 'FREIHEIT', 23000, [
+    [
+      [-4.2, 7.9],
+      [4.2, 7.9],
+    ],
+    [
+      [-8.8, 11.6],
+      [-3.2, 11.6],
+    ],
+  ], { start: [7.8, 14.4] }),
+);
 
 export const LEVEL_COUNT = LEVELS.length;
 

@@ -6,7 +6,7 @@ import { angleDelta, resolveCircle, turnTowards } from './Collision';
 import type { Collider } from './Collision';
 import { DetectionMeter, VisionCone } from './Detection';
 import type { AlertState, Target } from './Detection';
-import { FloatingBody, GUARD_STYLE } from './FloatingBody';
+import { DOG_PARTS, DOG_STYLE, FloatingBody, GUARD_STYLE } from './FloatingBody';
 
 /**
  * Guard - patrols a waypoint loop with a flashlight cone.
@@ -62,9 +62,14 @@ export class Guard {
   readonly body: FloatingBody;
   readonly cone: VisionCone;
   readonly meter = new DetectionMeter();
+  /** A guard dog: smells you through cover, runs faster, barks. */
+  readonly isDog: boolean;
   x = 0;
   z = 0;
   yaw = 0;
+  /** Where the cone starts, relative to the body (flashlight lens or the dog's nose). */
+  private lensX = LENS_X;
+  private lensZ = LENS_Z;
 
   /** Fired once each time the meter climbs into a new state. */
   onStateChange: (state: AlertState) => void = () => {};
@@ -104,6 +109,8 @@ export class Guard {
   /** Seconds since a chaser last saw the player. */
   private lostT = 0;
   private chaseSpeed: number;
+  /** Seconds left of the whistle/bark before running. */
+  private chaseDelay = 0;
 
   constructor(
     assets: Assets,
@@ -112,19 +119,28 @@ export class Guard {
     private halfWidth: number,
     private depth: number,
   ) {
-    this.body = new FloatingBody(assets.instance('guard'), GUARD_STYLE);
-    // The right hand carries the flashlight: keep it steady.
-    this.body.rightSwing = 0.15;
-    this.cone = new VisionCone(TUNING.detection.coneLength, TUNING.detection.coneHalfAngleDeg * DEG);
+    this.isDog = !!def.dog;
+    const D = TUNING.dog;
+    if (this.isDog) {
+      this.body = new FloatingBody(assets.instance('dog'), DOG_STYLE, DOG_PARTS);
+      this.cone = new VisionCone(D.coneLength, D.coneHalfAngleDeg * DEG);
+      this.lensX = 0;
+      this.lensZ = 0.8; // the nose
+    } else {
+      this.body = new FloatingBody(assets.instance('guard'), GUARD_STYLE);
+      // The right hand carries the flashlight: keep it steady.
+      this.body.rightSwing = 0.15;
+      this.cone = new VisionCone(TUNING.detection.coneLength, TUNING.detection.coneHalfAngleDeg * DEG);
+    }
     this.path = def.path;
     this.startIndex = def.start ?? 0;
-    this.speed = baseSpeed * (def.speedMul ?? 1);
+    this.speed = baseSpeed * (def.speedMul ?? 1) * (this.isDog ? D.speedMul : 1);
     const C = TUNING.chase;
-    this.chaseSpeed = Math.min(C.maxSpeed, this.speed * C.speedMul + C.speedAdd);
+    this.chaseSpeed = this.isDog ? D.chaseSpeed : Math.min(C.maxSpeed, this.speed * C.speedMul + C.speedAdd);
 
     this.iconMat = new THREE.SpriteMaterial({ map: getIcons().question, depthTest: false, toneMapped: false, fog: false });
     this.icon = new THREE.Sprite(this.iconMat);
-    this.icon.position.set(0, 2.75, 0);
+    this.icon.position.set(0, this.isDog ? 1.75 : 2.75, 0);
     this.icon.renderOrder = 20;
     this.icon.visible = false;
     this.body.root.add(this.icon);
@@ -181,6 +197,7 @@ export class Guard {
     this.lastSeenX = x;
     this.lastSeenZ = z;
     this.lostT = 0;
+    this.chaseDelay = TUNING.chase.windup;
     this.meter.value = 100;
     this.iconPop = 1;
     this.body.jump(3.6);
@@ -222,13 +239,22 @@ export class Guard {
     // ---- 1. look ----
     this.seesPlayer = false;
     if (target) {
-      const seen = this.cone.sees(target, colliders, this.x, this.z);
+      let seen = this.cone.sees(target, colliders, this.x, this.z);
+      let fillMul = 1;
+      if (this.isDog && seen < 0 && target.z > 0) {
+        // The dog smells you nearby, through cover and even when hidden.
+        const d = Math.hypot(target.x - this.x, target.z - this.z);
+        if (d < TUNING.dog.smell) {
+          seen = d / TUNING.dog.coneLength;
+          fillMul = TUNING.dog.smellFill;
+        }
+      }
       this.seesPlayer = seen >= 0;
       if (this.chasing) {
         // While chasing the meter stays full; the countdown lives in Game.
         this.meter.value = 100;
       } else {
-        this.meter.update(dt, seen, target.punching, target.stealth);
+        this.meter.update(dt, seen, target.punching, target.stealth * fillMul);
       }
       if (seen >= 0) {
         this.lastSeenX = target.x;
@@ -241,7 +267,11 @@ export class Guard {
       this.lostT = this.seesPlayer ? 0 : this.lostT + dt;
       const dx = this.lastSeenX - this.x;
       const dz = this.lastSeenZ - this.z;
-      if (Math.hypot(dx, dz) > 0.6) {
+      if (this.chaseDelay > 0) {
+        // Whistle / bark first: turn to face the player, do not run yet.
+        this.chaseDelay -= dt;
+        this.yaw = turnTowards(this.yaw, Math.atan2(dx, dz), G.turnRate * 3 * dt);
+      } else if (Math.hypot(dx, dz) > 0.6) {
         this.walkTo(this.lastSeenX, this.lastSeenZ, this.chaseSpeed, dt, colliders, G.turnRate * 2.6);
       } else {
         // At the spot and nobody there: look around quickly.
@@ -395,8 +425,8 @@ export class Guard {
     this.body.root.rotation.y = this.yaw;
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
-    const lx = this.x + LENS_X * cos + LENS_Z * sin;
-    const lz = this.z - LENS_X * sin + LENS_Z * cos;
+    const lx = this.x + this.lensX * cos + this.lensZ * sin;
+    const lz = this.z - this.lensX * sin + this.lensZ * cos;
     this.cone.update(lx, lz, this.yaw, colliders);
   }
 

@@ -64,16 +64,21 @@ const hud = /* html */ `
     <div class="chip detect" id="hud-detect">
       ${ICONS.eye}
       <span class="label" id="hud-status">HIDDEN</span>
+      <b class="chase-time" id="hud-chase-time">3.0</b>
       ${seg('hud-detect-bar', 'small')}
     </div>
     <div class="grow"></div>
     <div class="chip timer" id="hud-timer">0:00</div>
   </div>
-  <div class="chase" id="hud-chase">
-    <span class="chase-title">RUN!</span>
-    <b id="hud-chase-time">3.0</b>
-    <div class="seg chase-bar"><i id="hud-chase-bar"></i></div>
-    <span class="label" id="hud-chase-sub">BREAK LINE OF SIGHT</span>
+
+  <div class="coach-ring" id="coach-ring"></div>
+  <div class="coach" id="coach">
+    <div class="coach-head">
+      <span class="label" id="coach-step">1/7</span>
+      <span class="label coach-title">TUTORIAL</span>
+      <button class="coach-skip" data-act="skipTutorial">SKIP</button>
+    </div>
+    <p id="coach-text"></p>
   </div>
 
   <div class="joy-zone" id="joy-zone">
@@ -172,6 +177,7 @@ const settings = /* html */ `
     <div class="sheet-body">
       <h2 class="heading">SETTINGS</h2>
       ${toggles('set')}
+      <button class="btn btn-dark" data-act="replayTutorial"><span id="set-tutorial">REPLAY TUTORIAL</span></button>
       <button class="btn btn-dark btn-danger" data-act="reset"><span id="set-reset">RESET PROGRESS</span></button>
       <button class="btn btn-play" data-act="back">DONE</button>
     </div>

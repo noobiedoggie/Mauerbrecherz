@@ -42,6 +42,8 @@ export interface SaveData {
   levels: Record<number, LevelProgress>;
   /** Character upgrade levels (0 = not bought). */
   upgrades: Record<UpgradeId, number>;
+  /** The wall-1 tutorial was finished or skipped. */
+  tutorialDone: boolean;
   sound: boolean;
   vibration: boolean;
 }
@@ -59,6 +61,7 @@ export function freshSave(): SaveData {
     currentLevel: 1,
     levels: {},
     upgrades: freshUpgrades(),
+    tutorialDone: false,
     sound: true,
     vibration: true,
   };
@@ -91,6 +94,8 @@ function sanitize(raw: Partial<SaveData> | null): SaveData {
     ups[u.id] = Math.max(0, Math.min(u.prices.length, v));
   }
   data.upgrades = ups;
+  // Players who already beat wall 1 have clearly learned the controls.
+  data.tutorialDone = data.tutorialDone === true || !!data.levels[1]?.done;
   data.sound = data.sound !== false;
   data.vibration = data.vibration !== false;
   return data;

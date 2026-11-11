@@ -46,6 +46,9 @@ export interface BodyStyle {
   springBody: number;
   /** Spring damping ratio (1 = no overshoot, lower = more wobble). */
   damping: number;
+  /** Tail wag (radians) and speed, for models with a "Tail" node (the dog). */
+  tailWag?: number;
+  tailRate?: number;
 }
 
 export const PLAYER_STYLE: BodyStyle = {
@@ -81,6 +84,34 @@ export const GUARD_STYLE: BodyStyle = {
   springHands: 420,
   springBody: 650,
   damping: 0.5,
+};
+
+/** Guard dog: quick little gallop, front paws use the hand slots, back paws the feet. */
+export const DOG_STYLE: BodyStyle = {
+  hopHeight: 0.12,
+  cadence: 5.2,
+  idleHop: 0.015,
+  idleRate: 1.6,
+  stride: 0.13,
+  tuck: 0.07,
+  armSwing: 0.13,
+  lean: 0.05,
+  squash: 0.16,
+  stretch: 0.1,
+  springHead: 200,
+  springHands: 420,
+  springBody: 600,
+  damping: 0.45,
+  tailWag: 0.5,
+  tailRate: 9,
+};
+
+/** The dog model names its parts differently; map them onto the six slots. */
+export const DOG_PARTS: Partial<Record<PartName, string>> = {
+  Hand_L: 'Paw_FL',
+  Hand_R: 'Paw_FR',
+  Foot_L: 'Paw_BL',
+  Foot_R: 'Paw_BR',
 };
 
 /** Additive pose an owner (Player) can push onto a hand each frame. */
@@ -154,16 +185,22 @@ export class FloatingBody {
   /** Head turn (radians) - guards look around with it. */
   headYaw = 0;
 
+  /** Optional tail (dog). */
+  private tail: THREE.Object3D | null = null;
+
   constructor(
     model: THREE.Object3D,
     private style: BodyStyle,
+    /** Map a slot to a different node name (see DOG_PARTS). */
+    partMap: Partial<Record<PartName, string>> = {},
   ) {
     this.root.add(this.bounce);
     this.bounce.add(model);
     model.updateMatrixWorld(true);
+    const nodeName = (p: PartName) => partMap[p] ?? p;
 
     PART_NAMES.forEach((name) => {
-      const part = model.getObjectByName(name);
+      const part = model.getObjectByName(nodeName(name));
       if (!part) throw new Error(`Character is missing part "${name}"`);
       this.parts[name] = part;
       this.rest[name] = part.position.clone();
@@ -180,8 +217,14 @@ export class FloatingBody {
     // Outfit pieces are named <Part>_<Item>: hang each one under its part so
     // it follows that part (Head_Cap under Head, Hand_R_Flashlight under Hand_R...).
     for (const child of [...model.children]) {
-      const owner = PART_NAMES.find((p) => child.name !== p && child.name.startsWith(`${p}_`));
+      const owner = PART_NAMES.find((p) => child.name !== nodeName(p) && child.name.startsWith(`${nodeName(p)}_`));
       if (owner) this.parts[owner].attach(child);
+    }
+    // A tail rides on the torso and wags.
+    const tail = model.getObjectByName('Tail');
+    if (tail) {
+      this.parts.Torso.attach(tail);
+      this.tail = tail;
     }
   }
 
@@ -340,6 +383,12 @@ export class FloatingBody {
     this.parts.Foot_R.rotation.set(cw * 0.35 * m, 0, 0);
     this.parts.Hand_L.rotation.set(this.handL.rotX, 0, 0);
     this.parts.Hand_R.rotation.set(this.handR.rotX, 0, 0);
+
+    // ---- Tail wag: faster and wider when moving ----
+    if (this.tail && s.tailWag) {
+      const rate = (s.tailRate ?? 8) * (0.6 + 0.6 * m);
+      this.tail.rotation.y = Math.sin(this.time * rate) * s.tailWag * (0.5 + 0.5 * m);
+    }
 
     // ---- Jackhammer vibration ----
     if (this.shiver > 0.001) {

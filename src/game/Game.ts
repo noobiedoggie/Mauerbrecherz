@@ -18,6 +18,8 @@ import { Input } from './Input';
 import { Level } from './Level';
 import { MenuScene } from './MenuScene';
 import { Stones } from './Stones';
+import { Tutorial } from './Tutorial';
+import type { TutorialInput } from './Tutorial';
 import { Player } from './Player';
 import { Save } from './Save';
 import { impactHeight } from './Tools';
@@ -39,7 +41,7 @@ const SUN_OFFSET = new THREE.Vector3(...TUNING.evening.sunOffset);
 /** Where the player idles behind the main menu. */
 const MENU_PLAYER: [number, number, number] = [1.5, 0, 1.7];
 
-export type CaughtBy = 'guard' | 'searchlight' | 'mine';
+export type CaughtBy = 'guard' | 'dog' | 'searchlight' | 'mine';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -52,6 +54,13 @@ export class Game {
   private effects: Effects;
   private menuScene = new MenuScene();
   private stones!: Stones;
+  private tutorial = new Tutorial();
+  /** Counters the tutorial watches (this attempt). */
+  private hitCount = 0;
+  private throwCount = 0;
+  private spawnX = 0;
+  private spawnZ = 0;
+  private coachTimer = 0;
   private ui: UI;
   private input: Input;
   private level: Level | null = null;
@@ -107,7 +116,20 @@ export class Game {
     this.renderer.toneMappingExposure = E.exposure;
     this.scene.background = new THREE.Color(E.fogColor);
     this.scene.fog = new THREE.Fog(E.fogColor, E.fogNear, E.fogFar);
-    this.scene.add(makeSky(), this.menuScene.group);
+    this.scene.add(makeSky(), this.menuScene.group, this.tutorial.group);
+    this.tutorial.onStep = (step, index, total) => {
+      if (step) this.ui.showCoach(step.text, index, total, step.target);
+      else this.ui.showCoach(null);
+    };
+    this.tutorial.onFinish = (skipped) => {
+      this.save.data.tutorialDone = true;
+      void this.save.flush();
+      if (!skipped) {
+        this.ui.showCoach("You're ready. Break the wall, and if you're spotted: RUN!", 0, 0, null);
+        window.clearTimeout(this.coachTimer);
+        this.coachTimer = window.setTimeout(() => this.ui.showCoach(null), 3500);
+      }
+    };
 
     // ---- lighting: hemisphere fill + ONE low sun with shadows ----
     this.scene.add(new THREE.HemisphereLight(E.hemiSky, E.hemiGround, E.hemiIntensity));
@@ -283,6 +305,12 @@ export class Game {
       buyUpgrade: (id) => this.buyUpgrade(id),
       shopTab: (tab) => this.ui.renderShop(this.save.data, tab),
       equipTool: (id) => this.equipTool(id),
+      skipTutorial: () => this.tutorial.skip(),
+      replayTutorial: () => {
+        this.save.data.tutorialDone = false;
+        void this.save.flush();
+        this.ui.setTutorialLabel('TUTORIAL ON WALL 1');
+      },
       selectLevel: (id) => {
         if (id > this.save.data.unlockedLevel) return;
         this.save.data.currentLevel = id;
@@ -418,7 +446,10 @@ export class Game {
       g.onStateChange = (st) => {
         if (this.state !== 'playing') return;
         const pan = Math.max(-1, Math.min(1, (g.x - this.player.x) / 9));
-        if (st === 'alert') this.audio.alarm(pan);
+        if (g.isDog) {
+          if (st === 'alert') this.audio.bark(pan, 2);
+          else this.audio.sniff(pan);
+        } else if (st === 'alert') this.audio.alarm(pan);
         else this.audio.question(pan);
       };
       // Guard boots in the sand: you hear them before you see them.
@@ -426,7 +457,9 @@ export class Game {
         if (this.state !== 'playing') return;
         const d = Math.hypot(g.x - this.player.x, g.z - this.player.z);
         const vol = Math.max(0, 1 - d / 11) * (0.5 + 0.5 * k);
-        this.audio.footstep(vol * 0.9, Math.max(-1, Math.min(1, (g.x - this.player.x) / 8)), true);
+        const pan = Math.max(-1, Math.min(1, (g.x - this.player.x) / 8));
+        if (g.isDog) this.audio.pawstep(vol, pan);
+        else this.audio.footstep(vol * 0.9, pan, true);
       };
     }
     level.hazards.onExplode = (x, z) => this.onMine(x, z);
@@ -442,6 +475,8 @@ export class Game {
   private showMenu(): void {
     this.state = 'menu';
     this.input.setEnabled(false);
+    this.tutorial.stop();
+    this.ui.setTutorialLabel('REPLAY TUTORIAL');
     this.audio.stopAmbience();
     this.rig.setMode('menu');
     // The player waits at the foot of the wall, facing the camera.
@@ -482,6 +517,34 @@ export class Game {
     this.input.setEnabled(true);
     this.audio.unlock();
     this.audio.startAmbience();
+
+    // Interactive tutorial on wall 1 (until finished or skipped).
+    this.hitCount = 0;
+    this.throwCount = 0;
+    this.spawnX = def.start[0];
+    this.spawnZ = def.start[1];
+    window.clearTimeout(this.coachTimer);
+    this.ui.showCoach(null);
+    if (def.id === 1 && !this.save.data.tutorialDone) {
+      // Wait a moment for the camera move and the layout to settle.
+      window.setTimeout(() => {
+        if (this.state === 'playing' && this.levelId === 1) this.tutorial.start(this.tutorialInput());
+      }, 900);
+    } else {
+      this.tutorial.stop();
+    }
+  }
+
+  private tutorialInput(): TutorialInput {
+    const p = this.player;
+    return {
+      moved: Math.hypot(p.x - this.spawnX, p.z - this.spawnZ),
+      inPunchRange: p.inPunchRange,
+      hits: this.hitCount,
+      hidden: p.hidden,
+      canHide: p.canHide,
+      throws: this.throwCount,
+    };
   }
 
   private pause(): void {
@@ -510,6 +573,7 @@ export class Game {
     const level = this.level!;
     const wall = level.wall;
     if (wall.destroyed) return;
+    this.hitCount++;
 
     const before = wall.hp;
     const damage = Math.round(tool.damage * this.up('power'));
@@ -633,7 +697,8 @@ export class Game {
 
     const tackled = chasers.some((g) => g.seesPlayer && g.distanceTo(player.x, player.z) < C.catchDistance);
     if (this.chaseT <= 0 || tackled) {
-      this.caughtBy = 'guard';
+      const catcher = chasers.find((g) => g.seesPlayer) ?? chasers[0];
+      this.caughtBy = catcher.isDog ? 'dog' : 'guard';
       return true;
     }
     return false;
@@ -644,7 +709,9 @@ export class Game {
     g.startChase(player.x, player.z);
     // Being chased costs the "never spotted" star.
     this.save.level(this.levelId).spotted = true;
-    this.audio.chaseStart(Math.max(-1, Math.min(1, (g.x - player.x) / 9)));
+    const pan = Math.max(-1, Math.min(1, (g.x - player.x) / 9));
+    if (g.isDog) this.audio.bark(pan, 3);
+    else this.audio.chaseStart(pan);
     this.effects.buzz(180);
     this.rig.shake(0.12);
     // Guards nearby come to help.
@@ -692,6 +759,7 @@ export class Game {
     }
     const [tx, tz] = this.aimTarget(dx, dy, drag);
     this.stoneCount--;
+    this.throwCount++;
     this.ui.setStones(this.stoneCount);
     p.throwAt(Math.atan2(tx - p.x, tz - p.z));
     this.stones.throw(p.x, p.z, tx, tz);
@@ -708,7 +776,8 @@ export class Game {
     this.effects.noiseRing(x, z, S.noise);
     this.effects.hit(this.tmp.set(x, 0.15, z), 0.2);
     for (const g of level.guards) {
-      if (g.distanceTo(x, z) <= S.noise) g.hearNoise(x, z, S.investigateTime);
+      const radius = g.isDog ? S.noise * TUNING.dog.stoneNoiseMul : S.noise;
+      if (g.distanceTo(x, z) <= radius) g.hearNoise(x, z, S.investigateTime);
     }
   }
 
@@ -736,6 +805,7 @@ export class Game {
 
   private onCaught(by: CaughtBy): void {
     const level = this.level!;
+    this.tutorial.stop();
     this.state = 'caught';
     this.caughtBy = by;
     this.input.setEnabled(false);
@@ -763,6 +833,8 @@ export class Game {
   private onWallDown(): void {
     const level = this.level!;
     const def = level.def;
+    this.tutorial.stop();
+    this.ui.showCoach(null);
     this.state = 'won';
     this.input.setEnabled(false);
     this.player.startExit(level.targetX);
@@ -868,7 +940,9 @@ export class Game {
     t.z = player.z;
     t.hidden = player.hidden;
     t.punching = player.punching;
-    const seen = playing && !this.debugInvisible ? t : null;
+    // Nobody can spot you while the tutorial is teaching you.
+    const seen = playing && !this.debugInvisible && !this.tutorial.active ? t : null;
+    if (playing) this.tutorial.update(dt, this.tutorialInput());
     let detection = 0;
     for (const g of level.guards) {
       g.update(dt, seen, level.colliders);

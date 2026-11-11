@@ -39,6 +39,8 @@ export interface UIActions {
   shopTab(tab: ShopTab): void;
   equipTool(id: number): void;
   selectLevel(id: number): void;
+  skipTutorial(): void;
+  replayTutorial(): void;
   /** Any button was pressed (click sound). */
   tap(): void;
 }
@@ -197,9 +199,10 @@ export class UI {
       this.el('hud-wall-bar').style.width = `${wallPct}%`;
     }
     if (this.changed('coins', String(coins))) this.el('hud-coins').textContent = formatCoins(coins);
+    const chasing = this.el('hud-detect').classList.contains('chasing');
     const det = Math.round(detection);
-    if (this.changed('det', String(det))) this.el('hud-detect-bar').style.width = `${det}%`;
-    if (this.changed('state', state)) {
+    if (!chasing && this.changed('det', String(det))) this.el('hud-detect-bar').style.width = `${det}%`;
+    if (!chasing && this.changed('state', state)) {
       this.el('hud-status').textContent = state === 'alert' ? 'ALERT' : state === 'suspicious' ? 'SUSPICIOUS' : 'HIDDEN';
       this.el('hud-detect').dataset.state = state;
     }
@@ -222,6 +225,56 @@ export class UI {
     }
   }
 
+  /**
+   * Tutorial coach card. With a target it sits above that control and a ring
+   * pulses around it; without one it floats above the controls.
+   */
+  showCoach(text: string | null, index = 0, total = 0, target: 'joy' | 'punch' | 'hide' | 'throw' | null = null): void {
+    const card = this.el('coach');
+    const ring = this.el('coach-ring');
+    if (text === null) {
+      card.classList.remove('show');
+      ring.classList.remove('show');
+      return;
+    }
+    this.text('coach-text', text);
+    this.text('coach-step', total > 0 ? `${index + 1}/${total}` : '');
+    (card.querySelector('.coach-skip') as HTMLElement).style.display = total > 0 ? '' : 'none';
+    card.classList.remove('show');
+    void card.offsetWidth; // replay the pop-in animation
+    card.classList.add('show');
+    const section = card.parentElement!.getBoundingClientRect();
+    const ids = { joy: 'joy-base', punch: 'btn-punch', hide: 'btn-hide', throw: 'btn-throw' } as const;
+    if (target) {
+      const r = this.el(ids[target]).getBoundingClientRect();
+      const pad = 6;
+      ring.style.left = `${r.left - section.left - pad}px`;
+      ring.style.top = `${r.top - section.top - pad}px`;
+      ring.style.width = `${r.width + pad * 2}px`;
+      ring.style.height = `${r.height + pad * 2}px`;
+      ring.classList.toggle('round', target === 'joy');
+      ring.classList.add('show');
+      // Card above the control, clamped to the screen, arrow pointing at it.
+      const cw = card.offsetWidth;
+      const cx = r.left - section.left + r.width / 2;
+      const left = Math.max(12, Math.min(section.width - cw - 12, cx - cw / 2));
+      card.style.left = `${left}px`;
+      card.style.bottom = `${section.bottom - r.top + 18}px`;
+      card.style.setProperty('--arrow-x', `${cx - left}px`);
+      card.classList.add('pointing');
+    } else {
+      ring.classList.remove('show');
+      const cw = card.offsetWidth;
+      card.style.left = `${(section.width - cw) / 2}px`;
+      card.style.bottom = `calc(var(--sab) + 17rem)`;
+      card.classList.remove('pointing');
+    }
+  }
+
+  setTutorialLabel(text: string): void {
+    this.text('set-tutorial', text);
+  }
+
   /** Stone count on the THROW button. */
   setStones(count: number): void {
     if (!this.changed('stones', String(count))) return;
@@ -230,25 +283,28 @@ export class UI {
   }
 
   /**
-   * Chase banner. `remaining` = seconds left before being caught, or null
-   * when nobody is chasing. `seen` = a chaser can see the player right now.
+   * Chase: the detection chip turns into "RUN!" with the countdown.
+   * `remaining` = seconds left before being caught, or null when nobody is
+   * chasing. `seen` = a chaser can see the player right now.
    */
   setChase(remaining: number | null, max: number, seen: boolean): void {
     const on = remaining !== null;
+    const chip = this.el('hud-detect');
     if (this.changed('chase', String(on))) {
-      this.el('hud-chase').classList.toggle('show', on);
+      chip.classList.toggle('chasing', on);
       this.el('btn-punch').closest('section')!.classList.toggle('chased', on);
+      // Force the normal status text to refresh when the chase ends.
+      this.cache.delete('state');
+      this.cache.delete('det');
+      if (on) this.text('hud-status', 'RUN!');
     }
     if (!on) return;
     const t = remaining!.toFixed(1);
     if (this.changed('chaseT', t)) {
       this.text('hud-chase-time', t);
-      this.el('hud-chase-bar').style.width = `${(remaining! / max) * 100}%`;
+      this.el('hud-detect-bar').style.width = `${(remaining! / max) * 100}%`;
     }
-    if (this.changed('chaseSeen', String(seen))) {
-      this.el('hud-chase').classList.toggle('seen', seen);
-      this.text('hud-chase-sub', seen ? 'THEY SEE YOU - BREAK LINE OF SIGHT' : 'OUT OF SIGHT - KEEP HIDING');
-    }
+    if (this.changed('chaseSeen', String(seen))) chip.classList.toggle('seen', seen);
   }
 
   setToolIcon(tool: ToolDef): void {
@@ -362,10 +418,11 @@ export class UI {
     const text: Record<CaughtBy, string> = {
       guard: "The guard's flashlight caught you. Your hole stays, so come back and finish it.",
       searchlight: 'The searchlight caught you. Your hole stays, so come back and finish it.',
+      dog: 'The dog sniffed you out. Your hole stays. Dogs smell you through cover, so keep your distance.',
       mine: 'You stepped on a mine. Your hole stays. Watch for the red blink next time.',
     };
     this.text('sp-text', text[by]);
-    this.text('sp-stamp', by === 'mine' ? 'BOOM!' : 'SPOTTED!');
+    this.text('sp-stamp', by === 'mine' ? 'BOOM!' : by === 'dog' ? 'SNIFFED!' : 'SPOTTED!');
     (this.el('sp-icon') as HTMLImageElement).src = `${ASSET_BASE}ui_icons/icon_${by === 'mine' ? 'Player' : 'Guard'}.png`;
     this.el('sp-icon').closest('section')!.dataset.by = by;
     this.show('spotted');

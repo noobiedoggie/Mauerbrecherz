@@ -108,6 +108,8 @@ export const TUNING = {
   chase: {
     /** Seconds a chaser must keep you in sight before you are caught. */
     escapeTime: 3,
+    /** The chaser whistles / barks for this long before it starts running (your reaction time). */
+    windup: 0.6,
     /** How fast the countdown refills while no chaser sees you (x real time). */
     refillRate: 0.5,
     /** A chaser gives up after losing sight of you for this long (s). */
@@ -122,6 +124,23 @@ export const TUNING = {
     callRadius: 10,
     /** Detection meter left after a chaser gives up (still suspicious). */
     meterAfter: 55,
+  },
+
+  /** Guard dogs (walls 21+). They see less far but SMELL you through cover. */
+  dog: {
+    /** Vision: shorter, wider cone than a flashlight. */
+    coneLength: 4.6,
+    coneHalfAngleDeg: 38,
+    /** Smell radius (m): inside it the dog notices you even behind cover or hidden. */
+    smell: 2.4,
+    /** Meter fill multiplier while smelling you. */
+    smellFill: 1.4,
+    /** Patrol speed multiplier (relative to the level's guard speed). */
+    speedMul: 1.15,
+    /** Chase speed (m/s). Faster than the player's base 3.5: break line of sight! */
+    chaseSpeed: 3.7,
+    /** Stones attract dogs from further away (x stone noise radius). */
+    stoneNoiseMul: 1.5,
   },
 
   /** Throwable stones (distractions). */

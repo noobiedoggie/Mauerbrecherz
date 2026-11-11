@@ -9,8 +9,10 @@ while guards patrol with flashlights. Built with Vite, TypeScript and Three.js, 
   Break line of sight (cover, hiding, distance) and the guard gives up.
 - Throwable stones: tap THROW to throw ahead, or hold and drag to aim. Guards near the landing
   spot go and look. Pick stones back up, and collect the ones fallen wall chunks leave.
-- 20 walls. From wall 11 there are buried mines (step on one and the attempt is over) and
-  tripwires (a siren calls every guard).
+- 30 walls. From wall 11 there are buried mines (step on one and the attempt is over) and
+  tripwires (a siren calls every guard). From wall 21 guard dogs patrol: they see less far
+  but smell you through cover, even when you hide, and run faster than you.
+- An interactive tutorial on wall 1 (move, reach the wall, punch, hide, throw).
 - 6 tools and 6 body upgrades (speed, damage, stealth, quieter hits, mine sense, coin magnet).
 - Raked-sand ground texture and a cinematic sunset main menu.
 - Bouncy procedural animation: characters hop, squash and stretch, and their parts wobble on springs.
@@ -55,14 +57,14 @@ Keyboard: WASD or the arrow keys to move, Space to punch, H to hide, F to throw 
 index.html                 canvas + UI root
 capacitor.config.ts        app id, name, system bars
 scripts/configure-android.mjs  patches the generated Android project after every `cap sync`
-public/assets/             the original GLB models, PNG icons and crack decal (unchanged)
+public/assets/             the original GLB models (plus characters/GuardDog.glb), PNG icons and crack decal (unchanged)
 src/
   main.ts                  entry point, fonts
   config/
     tuning.ts              all global balance and feel numbers (speeds, detection, camera, economy)
     tools.ts               the six tools: damage, speed, noise, price, unlock, animation, sound
     upgrades.ts            the six body upgrades: prices and effect per level
-    levels.ts              the twenty walls: HP, guards, routes, cover, coins, searchlight, mines, tripwires
+    levels.ts              the thirty walls (21-30 remix 11-20 mirrored, with dogs): HP, guards, routes, cover, coins, searchlight, mines, tripwires
   game/
     Game.ts                renderer, game states, wiring, main loop
     Level.ts               builds a level's scene from its config
@@ -71,6 +73,7 @@ src/
     Wall.ts                breakable segment: fracture swap, chunk removal, rubble, decals
     Hazards.ts             mines, tripwires and warning signs
     Stones.ts              throwable stones: flight, pick-ups, aim preview
+    Tutorial.ts            interactive wall-1 tutorial (steps, 3D arrow)
     Tools.ts               tool attachment and punch poses
     FloatingBody.ts        bouncy procedural animation (hops, squash/stretch, spring-lagged parts)
     Detection.ts           vision cones and the 0-100 detection meter
@@ -98,6 +101,7 @@ Every number you are likely to tune is in `src/config/`, and each one has a comm
 - **Walls** (`levels.ts`): `wallHp`, `guardSpeed`, guard `path` loops, `cover`, `parTime` and `searchlight.period`.
 - **Detection** (`tuning.ts`): `fillNear`, `fillFar`, `drain` and `punchMultiplier` set how forgiving the guards are.
 - **Chase** (`tuning.ts` → `chase`): escape time, chaser speed, give-up time, catch distance.
+- **Dogs** (`tuning.ts` → `dog`): smell radius, vision cone, speeds.
 - **Stones** (`tuning.ts` → `stones`): starting count, carry limit, throw range, noise radius.
 - **Evening light** (`tuning.ts` → `evening`): sky colours, sun colour/angle, fog and exposure.
 - **Upgrades** (`upgrades.ts`): prices and the effect of each level.

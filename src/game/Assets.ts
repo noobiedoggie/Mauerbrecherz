@@ -21,6 +21,7 @@ export const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
 export type ModelKey =
   | 'player'
   | 'guard'
+  | 'dog'
   | 'wall'
   | 'wallFractured'
   | 'wallRow'
@@ -39,6 +40,7 @@ export type ModelKey =
 const MODEL_FILES: Record<string, string> = {
   player: 'characters/Player.glb',
   guard: 'characters/Guard.glb',
+  dog: 'characters/GuardDog.glb',
   wall: 'wall/Wall_Segment.glb',
   wallFractured: 'wall/Wall_Segment_Fractured.glb',
   wallRow: 'wall/Wall_Row6.glb',
