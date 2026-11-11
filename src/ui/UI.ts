@@ -78,7 +78,6 @@ export class UI {
   current: ScreenName = 'loading';
   private screens = new Map<ScreenName, HTMLElement>();
   private cache = new Map<string, string>();
-  private hintTimer = 0;
   private resetArmed = false;
 
   constructor(
@@ -254,20 +253,6 @@ export class UI {
 
   setToolIcon(tool: ToolDef): void {
     (this.el('hud-tool-icon') as HTMLImageElement).src = ASSET_BASE + tool.icon;
-  }
-
-  /** Short tip under the HUD; fades out by itself. */
-  hint(text: string, seconds = 5): void {
-    const el = this.el('hud-hint');
-    el.textContent = text;
-    el.classList.add('show');
-    window.clearTimeout(this.hintTimer);
-    this.hintTimer = window.setTimeout(() => el.classList.remove('show'), seconds * 1000);
-  }
-
-  clearHint(): void {
-    window.clearTimeout(this.hintTimer);
-    this.el('hud-hint').classList.remove('show');
   }
 
   // ---- shop --------------------------------------------------------------------

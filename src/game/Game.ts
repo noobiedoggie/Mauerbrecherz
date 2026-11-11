@@ -72,8 +72,6 @@ export class Game {
   private result: WallDownInfo | null = null;
   /** Where the shop's back button leads. */
   private shopFrom: 'menu' | 'spotted' = 'menu';
-  private lastWhiffHint = -10;
-  private mineTip = false;
   /** Balancing aid: when true nobody can see the player (set from the console via __game). */
   debugInvisible = false;
   private clock = 0;
@@ -380,7 +378,6 @@ export class Game {
     if (this.state !== 'playing') return;
     const owned = TOOLS.filter((t) => this.save.data.owned.includes(t.id));
     if (owned.length < 2) {
-      this.ui.hint('Buy more tools in the TOOLS shop.', 2.5);
       return;
     }
     const at = owned.findIndex((t) => t.id === this.player.tool.id);
@@ -394,7 +391,6 @@ export class Game {
       this.audio.rustle();
     } else {
       this.audio.deny();
-      this.ui.hint('HIDE only works next to a crate, sandbags or a barrel.', 2.5);
     }
   }
 
@@ -437,10 +433,6 @@ export class Game {
     level.hazards.onTrip = (x, z) => this.onTrip(x, z);
     level.hazards.onBeep = (x, _z, urgent) => this.audio.mineBeep(Math.max(-1, Math.min(1, (x - this.player.x) / 4)), urgent);
     if (level.searchlight) level.searchlight.onStateChange = onState;
-    if ((def.mines?.length || def.tripwires?.length) && this.save.data.upgrades.detector === 0 && def.id >= 11) {
-      // First minefield: point at the upgrade that helps.
-      this.mineTip = true;
-    }
 
     this.rig.setBounds(level.halfWidth, level.depth);
     this.player.spawn(def.start[0], def.start[1]);
@@ -451,7 +443,6 @@ export class Game {
     this.state = 'menu';
     this.input.setEnabled(false);
     this.audio.stopAmbience();
-    this.ui.clearHint();
     this.rig.setMode('menu');
     // The player waits at the foot of the wall, facing the camera.
     const [mx, , mz] = MENU_PLAYER;
@@ -491,12 +482,6 @@ export class Game {
     this.input.setEnabled(true);
     this.audio.unlock();
     this.audio.startAmbience();
-    if (def.hint) this.ui.hint(def.hint, 7);
-    else this.ui.clearHint();
-    if (this.mineTip) {
-      this.mineTip = false;
-      window.setTimeout(() => this.state === 'playing' && this.ui.hint('Tip: the MINE SENSE upgrade (TOOLS > BODY) shows mines from further away.', 5), 7500);
-    }
   }
 
   private pause(): void {
@@ -583,10 +568,6 @@ export class Game {
   /** PUNCH was pressed with nothing in reach. */
   private onWhiff(): void {
     this.audio.whiff();
-    if (this.clock - this.lastWhiffHint > 4) {
-      this.lastWhiffHint = this.clock;
-      this.ui.hint('Stand inside the yellow box to hit the wall.', 2.5);
-    }
   }
 
   private addCoins(n: number): void {
@@ -628,7 +609,6 @@ export class Game {
         this.chaseActive = false;
         this.ui.setChase(null, C.escapeTime, false);
         this.audio.escaped();
-        this.ui.hint('You lost them. Stay out of sight for a bit.', 2.5);
       }
       return false;
     }
@@ -667,7 +647,6 @@ export class Game {
     this.audio.chaseStart(Math.max(-1, Math.min(1, (g.x - player.x) / 9)));
     this.effects.buzz(180);
     this.rig.shake(0.12);
-    if (!this.chaseActive) this.ui.hint('Spotted! Get out of the light - hide or run behind cover.', 2.5);
     // Guards nearby come to help.
     for (const other of level.guards) {
       if (other !== g && !other.chasing && other.distanceTo(player.x, player.z) < TUNING.chase.callRadius) {
@@ -705,12 +684,10 @@ export class Game {
     if (this.state !== 'playing') return;
     const p = this.player;
     if (p.hidden) {
-      this.ui.hint('Stand up (HIDE) to throw.', 2);
       return;
     }
     if (this.stoneCount <= 0) {
       this.audio.deny();
-      this.ui.hint('No stones. Pick some up: thrown stones and wall chunks.', 2.5);
       return;
     }
     const [tx, tz] = this.aimTarget(dx, dy, drag);
@@ -754,7 +731,6 @@ export class Game {
     this.effects.noiseRing(x, z, 30);
     this.effects.buzz(200);
     this.ui.flash();
-    this.ui.hint('TRIPWIRE! Every guard heard that. Hide!', 3);
     for (const g of level.guards) g.hearNoise(x, z, 7);
   }
 
@@ -774,7 +750,6 @@ export class Game {
     this.audio.stopAmbience();
     this.effects.buzz(350);
     this.rig.shake(0.3);
-    this.ui.clearHint();
 
     // The hole stays: only the attempt ends.
     const prog = this.save.level(this.levelId);
@@ -797,7 +772,6 @@ export class Game {
     this.jackOn = false;
     this.audio.stopAmbience();
     this.effects.buzz(250);
-    this.ui.clearHint();
 
     const data = this.save.data;
     const prog = this.save.level(def.id);

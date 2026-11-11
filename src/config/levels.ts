@@ -56,8 +56,6 @@ export interface LevelDef {
   id: number;
   /** Short name shown on the WALLS screen. */
   name: string;
-  /** One-line tip shown when the level starts. */
-  hint?: string;
   wallHp: number;
   /** Play area size in metres. */
   width: number;
@@ -135,7 +133,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 1,
     name: 'FIRST CRACK',
-    hint: 'Walk to the marked wall and hold PUNCH. Tap HIDE next to the crate when the flashlight comes close.',
     wallHp: 300,
     width: 20,
     depth: 13,
@@ -160,7 +157,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 2,
     name: 'TWO SHADOWS',
-    hint: 'Punches make noise. Guards inside the noise ring walk over to look.',
     wallHp: 480,
     width: 20,
     depth: 13,
@@ -193,7 +189,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 3,
     name: 'CROSSFIRE',
-    hint: 'A guard who stops near you looks left and right. Stay down until he moves on.',
     wallHp: 700,
     width: 22,
     depth: 13,
@@ -263,7 +258,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 5,
     name: 'SEARCHLIGHT',
-    hint: 'The watchtower beam sweeps the ground. Props cast a safe shadow, so punch from behind them.',
     wallHp: 1250,
     width: 24,
     depth: 13,
@@ -492,7 +486,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 10,
     name: 'DER LETZTE SCHLAG',
-    hint: 'Last wall. Loud tools bring everyone running, so pick your moment.',
     wallHp: 4200,
     width: 26,
     depth: 13,
@@ -549,7 +542,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 11,
     name: 'MINENFELD',
-    hint: 'Mines blink red once you get close. The gaps in the minefield are the only way through.',
     wallHp: 4800,
     width: 26,
     depth: 13,
@@ -601,7 +593,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 12,
     name: 'SLALOM',
-    hint: 'Two rows of mines, offset. Weave between them.',
     wallHp: 5400,
     width: 26,
     depth: 14,
@@ -643,7 +634,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 13,
     name: 'STOLPERDRAHT',
-    hint: 'Thin wires glint between the posts. Touch one and a siren calls every guard to you.',
     wallHp: 6100,
     width: 26,
     depth: 13,
@@ -750,7 +740,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 15,
     name: 'NIEMANDSLAND',
-    hint: 'No man’s land. Wide open ground, mines everywhere. Use the shadows of the hedgehogs.',
     wallHp: 7600,
     width: 26,
     depth: 15,
@@ -809,7 +798,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 16,
     name: 'SPIDERWEB',
-    hint: 'Tripwires everywhere. Look closely before you run.',
     wallHp: 8400,
     width: 26,
     depth: 14,
@@ -929,7 +917,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 18,
     name: 'TODESSTREIFEN',
-    hint: 'The death strip. Mines, wires and five guards.',
     wallHp: 10200,
     width: 26,
     depth: 15,
@@ -1046,7 +1033,6 @@ export const LEVELS: LevelDef[] = [
   {
     id: 20,
     name: 'DIE MAUER FÄLLT',
-    hint: 'The last wall of all. Everything they have, all at once.',
     wallHp: 12500,
     width: 26,
     depth: 15,

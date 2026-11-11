@@ -75,7 +75,6 @@ const hud = /* html */ `
     <div class="seg chase-bar"><i id="hud-chase-bar"></i></div>
     <span class="label" id="hud-chase-sub">BREAK LINE OF SIGHT</span>
   </div>
-  <div class="hint" id="hud-hint"></div>
 
   <div class="joy-zone" id="joy-zone">
     <div class="joy-base" id="joy-base"><div class="joy-knob" id="joy-knob"></div></div>

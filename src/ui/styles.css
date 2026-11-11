@@ -539,29 +539,6 @@ img {
   color: var(--red);
 }
 
-.hint {
-  align-self: center;
-  max-width: 21rem;
-  padding: 0.5rem 0.875rem;
-  background: rgba(22, 22, 29, 0.9);
-  border-left: 3px solid var(--yellow);
-  color: var(--paper);
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  text-align: center;
-  opacity: 0;
-  transform: translateY(-0.25rem);
-  transition:
-    opacity 0.25s,
-    transform 0.25s;
-  pointer-events: none;
-}
-
-.hint.show {
-  opacity: 1;
-  transform: none;
-}
-
 .joy-zone {
   position: absolute;
   left: 0;
