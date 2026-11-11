@@ -7,4 +7,5 @@ as an update, keeping the save data.
 
 It is only for debug builds. Do not use it to publish on Google Play.
 
-Local builds use it automatically if you copy it to `~/.android/debug.keystore`.
+`scripts/configure-android.mjs` (run by `npx cap sync`) adds it to `android/app/build.gradle`,
+so local and GitHub builds both use it automatically.

@@ -33,11 +33,6 @@ jobs:
       - name: Build the web game
         run: npm run build
 
-      - name: Use the shared debug signing key (so updates install over the old app)
-        run: |
-          mkdir -p ~/.android
-          cp android-keys/debug.keystore ~/.android/debug.keystore
-
       - name: Create and sync the Android project
         env:
           APP_VERSION_CODE: ${{ github.run_number }}

@@ -30,8 +30,8 @@ APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 Install it with `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
 
-To sign local builds with the same key as the GitHub builds (so they update each other),
-copy `android-keys/debug.keystore` to `~/.android/debug.keystore` first.
+Local builds and GitHub builds are both signed with `android-keys/debug.keystore`, so they
+can update each other.
 
 ## Updating the game on a phone
 

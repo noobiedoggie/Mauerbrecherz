@@ -43,7 +43,31 @@ if (fs.existsSync(stylesPath)) {
   }
 }
 
-// 5. Version: every GitHub build gets a higher versionCode so Android installs it as an update.
+// 5. Sign debug builds with the shared key in android-keys/ (same signature on
+//    every machine, so a new APK installs over the old one as an update).
+const appGradle = path.join('android', 'app', 'build.gradle');
+const keystore = path.join('android-keys', 'debug.keystore');
+if (fs.existsSync(appGradle) && fs.existsSync(keystore)) {
+  let gradle = fs.readFileSync(appGradle, 'utf8');
+  if (!gradle.includes('android-keys/debug.keystore')) {
+    gradle = gradle.replace(
+      /android\s*\{/,
+      `android {
+    signingConfigs {
+        debug {
+            storeFile file("\${rootDir}/../android-keys/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }`,
+    );
+    fs.writeFileSync(appGradle, gradle);
+    console.log('[configure-android] debug builds signed with android-keys/debug.keystore');
+  }
+}
+
+// 6. Version: every GitHub build gets a higher versionCode so Android installs it as an update.
 const code = Number(process.env.APP_VERSION_CODE || 0);
 const gradlePath = path.join('android', 'app', 'build.gradle');
 if (code > 0 && fs.existsSync(gradlePath)) {
