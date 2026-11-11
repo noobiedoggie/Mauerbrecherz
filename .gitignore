@@ -2,8 +2,8 @@ node_modules/
 dist/
 # Native project is generated with `npx cap add android` and configured by
 # scripts/configure-android.mjs on every `npx cap sync`.
-android/
-ios/
+/android/
+/ios/
 *.log
 .DS_Store
 .vite/
