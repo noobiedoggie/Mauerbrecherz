@@ -13,6 +13,9 @@
  *   guards      one entry per guard; `path` is a waypoint loop
  *   cover       props the player can HIDE next to (they also block flashlights)
  *   searchlight the watchtower beam (levels 5+)
+ *   mines       buried mines (levels 11+): step on one and it is over
+ *   tripwires   wires between two posts (levels 13+): touching one sets off a
+ *               siren and every guard comes running
  *   parTime     seconds for the third star (time adds up over retries)
  */
 
@@ -71,6 +74,12 @@ export interface LevelDef {
   /** X positions of street lamps along the wall. */
   lamps: number[];
   searchlight?: SearchlightDef;
+  /** Buried mines. They blink when you are within the Mine Sense range. */
+  mines?: Vec2[];
+  /** Tripwires, each from one post to the other. */
+  tripwires?: [Vec2, Vec2][];
+  /** "ACHTUNG MINEN" warning signs (set dressing). */
+  signs?: Vec2[];
   /** Where the player starts. */
   start: Vec2;
 }
@@ -95,6 +104,30 @@ const sandbags = (x: number, z: number, turned = false): CoverDef => ({ type: 's
 function beam(period: number, fillMul = 2.2): SearchlightDef {
   return { fromDeg: -103, toDeg: -160, period, length: 22, halfAngleDeg: 6.5, fillMul };
 }
+
+/** `n` mines from x0 to x1 at depth z, zig-zagging by `zag` metres. */
+function mineRow(x0: number, x1: number, z: number, n: number, zag = 0.35): Vec2[] {
+  const out: Vec2[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    out.push([+(x0 + (x1 - x0) * t).toFixed(2), +(z + (i % 2 ? zag : -zag)).toFixed(2)]);
+  }
+  return out;
+}
+
+/** Small cluster of mines around a point. */
+function mineCluster(x: number, z: number, r = 0.9): Vec2[] {
+  return [
+    [x, z],
+    [+(x - r).toFixed(2), +(z + r * 0.6).toFixed(2)],
+    [+(x + r).toFixed(2), +(z - r * 0.5).toFixed(2)],
+  ];
+}
+
+const wire = (x0: number, z0: number, x1: number, z1: number): [Vec2, Vec2] => [
+  [x0, z0],
+  [x1, z1],
+];
 
 // ---- the walls ------------------------------------------------------------
 
@@ -509,6 +542,588 @@ export const LEVELS: LevelDef[] = [
     lamps: [-10.8, -3.6, 3.6, 10.8],
     searchlight: beam(8, 2.6),
     start: [11, 12.3],
+  },
+  // ---------------------------------------------------------------------------
+  // WALLS 11-20: minefields and tripwires
+  // ---------------------------------------------------------------------------
+  {
+    id: 11,
+    name: 'MINENFELD',
+    hint: 'Mines blink red once you get close. The gaps in the minefield are the only way through.',
+    wallHp: 4800,
+    width: 26,
+    depth: 13,
+    parTime: 175,
+    guardSpeed: 2.3,
+    guards: [
+      {
+        path: [
+          [-11.5, 3.3],
+          [11.5, 3.3],
+        ],
+      },
+      {
+        path: [
+          [-6, 4.6],
+          [-6, 9.8],
+        ],
+      },
+      {
+        path: [
+          [11, 10.7],
+          [-11, 10.7],
+        ],
+        start: 1,
+      },
+    ],
+    cover: [crate(-2.6, 1.1), crate(1.75, 2.15), barrel(3.0, 0.9), sandbags(-6.4, 1.3), crate(9, 5.0), barrel(-10, 5.0), sandbags(2, 9.2)],
+    hedgehogs: [
+      [10.6, 12.3],
+      [-1.2, 12.2],
+    ],
+    mines: [...mineRow(-12.2, -8.2, 7, 4), ...mineRow(-3.8, 3.2, 7, 7), ...mineRow(7.2, 12.2, 7, 5)],
+    signs: [
+      [-12.4, 8.6],
+      [12.4, 8.6],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [5.2, 7],
+      [0, 5.2],
+      [8, 9.2],
+      [-3, 9.4],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(9, 2.4),
+    start: [-0.2, 12.4],
+  },
+  {
+    id: 12,
+    name: 'SLALOM',
+    hint: 'Two rows of mines, offset. Weave between them.',
+    wallHp: 5400,
+    width: 26,
+    depth: 14,
+    parTime: 185,
+    guardSpeed: 2.35,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+        start: 1,
+      },
+      { path: rect(-11, 6.0, -6.6, 11.6) },
+      { path: rect(11, 11.6, 6.6, 6.4), start: 2 },
+    ],
+    cover: [crate(-2.6, 1.1), crate(1.75, 2.15), sandbags(4.6, 1.2), barrel(-4.6, 1.0), crate(-1.5, 8.8), barrel(2.6, 8.8), crate(-8.8, 4.6)],
+    hedgehogs: [
+      [0.4, 5.3],
+      [-12, 13.2],
+    ],
+    mines: [...mineRow(-5.2, 5.2, 7.1, 7, 0.2), ...mineRow(-4.4, 4.4, 10.6, 5, 0.2), ...mineCluster(9, 4.6, 0.8)],
+    signs: [
+      [-6, 13.4],
+      [6, 13.4],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [0, 8.9],
+      [-8.8, 8.8],
+      [8.8, 8.8],
+      [0, 12.4],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(9, 2.4),
+    start: [-1.8, 12.8],
+  },
+  {
+    id: 13,
+    name: 'STOLPERDRAHT',
+    hint: 'Thin wires glint between the posts. Touch one and a siren calls every guard to you.',
+    wallHp: 6100,
+    width: 26,
+    depth: 13,
+    parTime: 190,
+    guardSpeed: 2.4,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+      },
+      { path: rect(-10.8, 5.4, -3, 8.4), start: 2 },
+      { path: rect(10.8, 8.4, 3, 5.4) },
+      {
+        path: [
+          [-10, 11.2],
+          [10, 11.2],
+        ],
+        start: 1,
+      },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      barrel(3.0, 0.9),
+      sandbags(-5.6, 1.3),
+      crate(-1.2, 6.9),
+      crate(1.2, 6.9),
+      barrel(-12, 9.6),
+      barrel(12, 9.6),
+    ],
+    hedgehogs: [
+      [-6.6, 9.8],
+      [6.6, 9.8],
+    ],
+    tripwires: [wire(-0.65, 6.9, 0.65, 6.9), wire(-6.05, 9.8, -1.4, 9.8), wire(1.4, 9.8, 6.05, 9.8)],
+    mines: [...mineCluster(-9.2, 2.0, 0.7), ...mineCluster(9.4, 1.9, 0.7)],
+    signs: [[-12.4, 1.2]],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [0, 8.4],
+      [-8.6, 12.3],
+      [8.6, 12.3],
+      [0, 4.4],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(8.8, 2.4),
+    start: [7, 12.4],
+  },
+  {
+    id: 14,
+    name: 'DOUBLE FENCE',
+    wallHp: 6800,
+    width: 26,
+    depth: 14,
+    parTime: 200,
+    guardSpeed: 2.45,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+        start: 1,
+      },
+      { path: rect(-11, 5.4, -4.2, 8.2) },
+      { path: rect(11, 8.2, 4.2, 5.4), start: 1 },
+      { path: rect(-3, 9.6, 3, 12.6), start: 3 },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      sandbags(4.6, 1.2),
+      barrel(-4.6, 1.0),
+      crate(0, 6.8),
+      barrel(-8, 10.6),
+      barrel(8, 10.6),
+      sandbags(-11.4, 12.4, true),
+    ],
+    hedgehogs: [
+      [-5.6, 10.6],
+      [5.6, 10.6],
+    ],
+    tripwires: [wire(-7.7, 10.6, -6.15, 10.6), wire(6.15, 10.6, 7.7, 10.6), wire(-0.6, 6.8, -3.3, 6.8)],
+    mines: [...mineRow(-12.2, -8.6, 9.5, 3, 0.2), ...mineRow(8.6, 12.2, 9.5, 3, 0.2), ...mineRow(0.9, 3.0, 7.8, 3)],
+    signs: [
+      [-12.4, 13.6],
+      [12.4, 13.6],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [-9.8, 12.4],
+      [9.8, 12.4],
+      [0, 8.4],
+      [-7.6, 4.3],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(8.5, 2.5),
+    start: [-10.6, 13.4],
+  },
+  {
+    id: 15,
+    name: 'NIEMANDSLAND',
+    hint: 'No man’s land. Wide open ground, mines everywhere. Use the shadows of the hedgehogs.',
+    wallHp: 7600,
+    width: 26,
+    depth: 15,
+    parTime: 210,
+    guardSpeed: 2.5,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+      },
+      { path: rect(-11, 5.6, -1.4, 9.2), start: 1 },
+      { path: rect(11, 9.2, 1.4, 5.6), start: 3 },
+      {
+        path: [
+          [11, 12.6],
+          [-11, 12.6],
+        ],
+      },
+    ],
+    cover: [crate(-2.6, 1.1), crate(1.75, 2.15), barrel(3.0, 0.9), sandbags(-5.6, 1.3), barrel(-12.2, 7.4), barrel(12.2, 12.4)],
+    hedgehogs: [
+      [-6.4, 7.4],
+      [0, 7.4],
+      [6.4, 7.4],
+      [-3.2, 11],
+      [3.2, 11],
+      [-8.8, 14.2],
+    ],
+    mines: [
+      ...mineRow(-11.6, -7.8, 10.9, 3, 0.25),
+      ...mineRow(-1.6, 1.6, 10.9, 3, 0.25),
+      ...mineRow(7.8, 11.6, 10.9, 3, 0.25),
+      ...mineRow(-4.2, -2.6, 4.45, 2, 0),
+      ...mineRow(3.4, 5.0, 4.45, 2, 0),
+    ],
+    signs: [
+      [-12.4, 14.6],
+      [12.4, 14.6],
+      [0, 14.7],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [-3.2, 9],
+      [3.2, 9],
+      [0, 5.2],
+      [9.6, 14.2],
+      [-11.9, 8.6],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(8.2, 2.5),
+    start: [6.2, 14.4],
+  },
+  {
+    id: 16,
+    name: 'SPIDERWEB',
+    hint: 'Tripwires everywhere. Look closely before you run.',
+    wallHp: 8400,
+    width: 26,
+    depth: 14,
+    parTime: 220,
+    guardSpeed: 2.5,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+        start: 1,
+      },
+      { path: rect(-11, 5.4, -3.6, 8.6), start: 2 },
+      { path: rect(11, 8.6, 3.6, 5.4) },
+      { path: rect(-9, 10.4, 9, 12.4), start: 1 },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      sandbags(4.6, 1.2),
+      barrel(-4.6, 1.0),
+      crate(-1.4, 7.1),
+      crate(1.4, 7.1),
+      barrel(-12.2, 10),
+      barrel(12.2, 10),
+    ],
+    hedgehogs: [
+      [-5.8, 13.4],
+      [5.8, 13.4],
+      [0, 4.6],
+    ],
+    tripwires: [
+      wire(-0.85, 7.1, 0.85, 7.1),
+      wire(-2.0, 7.1, -2.6, 5.6),
+      wire(2.0, 7.1, 2.6, 5.6),
+      wire(-0.6, 4.6, -2.2, 4.6),
+      wire(0.6, 4.6, 2.2, 4.6),
+      wire(-5.2, 13.4, -1.0, 13.4),
+      wire(1.0, 13.4, 5.2, 13.4),
+    ],
+    mines: [...mineCluster(-9.4, 1.8, 0.7), ...mineCluster(9.4, 1.8, 0.7)],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [0, 9.0],
+      [-8.6, 9.6],
+      [8.6, 9.6],
+      [0, 13.6],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(8, 2.5),
+    start: [11.8, 12.8],
+  },
+  {
+    id: 17,
+    name: 'CHECKPOINT',
+    wallHp: 9300,
+    width: 26,
+    depth: 15,
+    parTime: 230,
+    guardSpeed: 2.55,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+      },
+      {
+        path: [
+          [-11.6, 6.3],
+          [11.6, 6.3],
+        ],
+        start: 1,
+      },
+      { path: rect(-10.4, 8.4, -2.6, 11), start: 1 },
+      { path: rect(10.4, 11, 2.6, 8.4), start: 3 },
+      {
+        path: [
+          [0, 7.8],
+          [0, 11.2],
+        ],
+      },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      barrel(3.0, 0.9),
+      sandbags(-5.6, 1.3),
+      sandbags(5.8, 1.3),
+      crate(-6.6, 4.8),
+      crate(6.6, 4.8),
+      barrel(-12.2, 12.4),
+    ],
+    hedgehogs: [
+      [-1.6, 4.8],
+      [1.6, 4.8],
+      [12.2, 9.8],
+    ],
+    tripwires: [wire(-1.0, 4.8, 1.0, 4.8), wire(-6.0, 4.8, -2.2, 4.8), wire(2.2, 4.8, 6.0, 4.8)],
+    mines: [...mineRow(-12.2, -8.2, 4.8, 3, 0.2), ...mineRow(8.2, 12.2, 4.8, 3, 0.2), ...mineCluster(-6.6, 13.2, 0.7)],
+    signs: [[12.4, 14.6]],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [-6.6, 10],
+      [6.6, 10],
+      [0, 13.4],
+      [-4, 7.6],
+      [4, 7.6],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(7.8, 2.6),
+    start: [-11.4, 14.4],
+  },
+  {
+    id: 18,
+    name: 'TODESSTREIFEN',
+    hint: 'The death strip. Mines, wires and five guards.',
+    wallHp: 10200,
+    width: 26,
+    depth: 15,
+    parTime: 240,
+    guardSpeed: 2.6,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+        start: 1,
+      },
+      { path: rect(-11, 5.4, -3.8, 8) },
+      { path: rect(11, 8, 3.8, 5.4), start: 2 },
+      { path: rect(-8.4, 10.6, -2, 12.2), start: 1 },
+      { path: rect(8.4, 12.2, 2, 10.6), start: 3 },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      sandbags(4.6, 1.2),
+      barrel(-4.6, 1.0),
+      crate(0, 6.7),
+      barrel(-12.2, 11.2),
+      crate(-10.2, 13.4),
+      barrel(12.2, 11.2),
+      sandbags(0, 11.4),
+    ],
+    hedgehogs: [
+      [-6.4, 9.2],
+      [6.4, 9.2],
+      [0, 14.4],
+    ],
+    tripwires: [wire(-5.8, 9.2, -1.6, 9.2), wire(1.6, 9.2, 5.8, 9.2), wire(0.7, 6.7, 2.4, 6.7)],
+    mines: [
+      ...mineRow(-12.2, -7.4, 9.2, 4, 0.2),
+      ...mineRow(7.4, 12.2, 9.2, 4, 0.2),
+      ...mineCluster(-2, 4.6, 0.6),
+      ...mineCluster(2.6, 4.6, 0.6),
+    ],
+    signs: [
+      [-12.4, 14.6],
+      [12.4, 14.6],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [0, 9.2],
+      [-6.4, 11.6],
+      [6.4, 11.6],
+      [-12, 12.6],
+      [12, 14.4],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(7.5, 2.6),
+    start: [-11.6, 14.4],
+  },
+  {
+    id: 19,
+    name: 'LAST LIGHT',
+    wallHp: 11200,
+    width: 26,
+    depth: 15,
+    parTime: 250,
+    guardSpeed: 2.7,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+      },
+      { path: rect(-11, 5.4, -2.6, 8.25), start: 2 },
+      { path: rect(11, 8.25, 2.6, 5.4) },
+      { path: rect(-10, 10.4, -2.2, 13.2), start: 3 },
+      { path: rect(10, 13.2, 2.2, 10.4), start: 1 },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      barrel(3.0, 0.9),
+      sandbags(-5.6, 1.3),
+      sandbags(5.8, 1.3),
+      crate(0, 9.3),
+      barrel(-12.2, 9.4),
+      barrel(12.2, 9.4),
+    ],
+    hedgehogs: [
+      [-6.2, 9.3],
+      [6.2, 9.3],
+      [0, 4.6],
+      [-12.2, 14.4],
+    ],
+    tripwires: [wire(-0.6, 9.3, -5.6, 9.3), wire(0.6, 9.3, 5.6, 9.3), wire(-0.6, 4.6, -1.6, 7.6), wire(0.6, 4.6, 1.6, 7.6)],
+    mines: [...mineRow(-12.2, -7.4, 4.35, 4, 0.08), ...mineRow(7.4, 12.2, 4.35, 4, 0.08), ...mineCluster(0, 12.4, 0.8)],
+    signs: [
+      [-4, 14.7],
+      [4, 14.7],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [-3, 6.9],
+      [3, 6.9],
+      [0, 11],
+      [-6.2, 14.4],
+      [6.2, 14.4],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(7.2, 2.7),
+    start: [-11.4, 13.8],
+  },
+  {
+    id: 20,
+    name: 'DIE MAUER FÄLLT',
+    hint: 'The last wall of all. Everything they have, all at once.',
+    wallHp: 12500,
+    width: 26,
+    depth: 15,
+    parTime: 270,
+    guardSpeed: 2.8,
+    guards: [
+      {
+        path: [
+          [-11.6, 3.3],
+          [11.6, 3.3],
+        ],
+        start: 1,
+      },
+      {
+        path: [
+          [-11.6, 6.4],
+          [11.6, 6.4],
+        ],
+      },
+      { path: rect(-10.6, 8.6, -2, 11.4), start: 2 },
+      { path: rect(10.6, 11.4, 2, 8.6) },
+      {
+        path: [
+          [0, 7.8],
+          [0, 13.6],
+        ],
+        start: 1,
+      },
+    ],
+    cover: [
+      crate(-2.6, 1.1),
+      crate(1.75, 2.15),
+      barrel(3.0, 0.9),
+      sandbags(-5.6, 1.3),
+      sandbags(5.8, 1.3),
+      crate(-6.4, 4.9),
+      crate(6.4, 4.9),
+      barrel(-12.2, 12.6),
+      barrel(12.2, 12.6),
+    ],
+    hedgehogs: [
+      [-1.8, 4.9],
+      [1.8, 4.9],
+      [-6.2, 13.4],
+      [6.2, 13.4],
+    ],
+    tripwires: [
+      wire(-1.25, 4.9, 1.25, 4.9),
+      wire(-5.85, 4.9, -2.35, 4.9),
+      wire(2.35, 4.9, 5.85, 4.9),
+      wire(-5.6, 13.4, -1.0, 13.4),
+      wire(1.0, 13.4, 5.6, 13.4),
+    ],
+    mines: [
+      ...mineRow(-12.2, -8.2, 4.9, 3, 0.2),
+      ...mineRow(8.2, 12.2, 4.9, 3, 0.2),
+      ...mineCluster(-6.4, 9.9, 0.7),
+      ...mineCluster(6.4, 9.9, 0.7),
+    ],
+    signs: [
+      [-12.4, 14.6],
+      [12.4, 14.6],
+      [2.6, 14.8],
+    ],
+    coins: [
+      [-11.9, 1.2],
+      [11.9, 1.2],
+      [-4, 8],
+      [4, 8],
+      [0, 14.4],
+      [-9.6, 14.4],
+      [9.6, 14.4],
+      [-12, 8],
+    ],
+    lamps: [-10.8, -3.6, 3.6, 10.8],
+    searchlight: beam(7, 2.8),
+    start: [-11.4, 14.4],
   },
 ];
 

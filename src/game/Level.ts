@@ -6,6 +6,7 @@ import type { Assets } from './Assets';
 import { boxCollider, circleCollider } from './Collision';
 import type { Collider } from './Collision';
 import { Guard, Searchlight } from './Guard';
+import { Hazards } from './Hazards';
 import { SEGMENT_WIDTH, Wall, placeSegment } from './Wall';
 
 /**
@@ -26,6 +27,63 @@ interface Coin {
   phase: number;
 }
 
+// ---- evening light helpers (textures shared by every level) -------------------
+
+let glowTexture: THREE.CanvasTexture | null = null;
+let poolMaterial: THREE.MeshBasicMaterial | null = null;
+const POOL_GEO = new THREE.CircleGeometry(3.4, 32);
+
+function radialTexture(): THREE.CanvasTexture {
+  if (glowTexture) return glowTexture;
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  grad.addColorStop(0.6, 'rgba(255,255,255,0.15)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  glowTexture = new THREE.CanvasTexture(c);
+  glowTexture.colorSpace = THREE.SRGBColorSpace;
+  return glowTexture;
+}
+
+function getPoolMaterial(): THREE.MeshBasicMaterial {
+  if (!poolMaterial) {
+    poolMaterial = new THREE.MeshBasicMaterial({
+      map: radialTexture(),
+      color: 0xffb860,
+      transparent: true,
+      opacity: 0.42,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+  }
+  return poolMaterial;
+}
+
+/** Soft additive glow sprite (lamps, searchlight). */
+function makeGlow(pos: THREE.Vector3, size: number, color: number): THREE.Sprite {
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: radialTexture(),
+      color,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  sprite.position.copy(pos);
+  sprite.scale.set(size, size, 1);
+  return sprite;
+}
+
 /** Extra single wall segments added on each side of the two Wall_Row6 pieces. */
 const EXTRA_SEGMENTS_PER_SIDE = 5;
 const TILE = 10;
@@ -37,6 +95,7 @@ export class Level {
   readonly wall: Wall;
   readonly guards: Guard[] = [];
   readonly searchlight: Searchlight | null = null;
+  readonly hazards: Hazards;
   readonly halfWidth: number;
   readonly depth: number;
   /** X of the breakable segment. */
@@ -61,6 +120,8 @@ export class Level {
     this.marker = this.buildPunchZone();
     this.buildDressing(assets);
     this.buildObstacles(assets);
+    this.hazards = new Hazards(def.mines ?? [], def.tripwires ?? [], def.signs ?? [], this.colliders);
+    this.group.add(this.hazards.group);
     this.buildCoins(assets, coinsTaken);
 
     for (const g of def.guards) {
@@ -81,6 +142,8 @@ export class Level {
     const lens = tower.getObjectByName('SearchlightLens');
     if (head && lens) head.attach(lens); // the lens turns with the lamp
     if (head) head.rotation.y = -2.3; // points at the yard even when it is switched off
+    // Evening: the searchlight lens glows.
+    if (lens) this.group.add(makeGlow(lens.getWorldPosition(new THREE.Vector3()), 2.4, 0xfff0c8));
     if (def.searchlight) {
       const s = def.searchlight;
       this.searchlight = new Searchlight(head, towerX, towerZ, s.fromDeg, s.toDeg, s.period, s.length, s.halfAngleDeg, s.fillMul);
@@ -148,6 +211,13 @@ export class Level {
       const lamp = assets.instance('lamp');
       lamp.position.set(x, 0, 0.3); // the arm reaches out over the yard (+Z)
       this.group.add(lamp);
+      // Evening: a warm glow at the lamp head and a pool of light on the sand.
+      this.group.add(makeGlow(new THREE.Vector3(x, 6.2, 1.05), 2.2, 0xffd59a));
+      const pool = new THREE.Mesh(POOL_GEO, getPoolMaterial());
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(x, 0.025, 1.6);
+      pool.renderOrder = 1;
+      this.group.add(pool);
       this.colliders.push(circleCollider(x, 0.3, 0.2, false, false));
     }
 
@@ -217,7 +287,7 @@ export class Level {
   // ---- per frame ---------------------------------------------------------------
 
   /** Spin and bob the coins; returns the indices picked up this frame. */
-  updateCoins(dt: number, playerX: number, playerZ: number, canCollect: boolean, out: number[]): void {
+  updateCoins(dt: number, playerX: number, playerZ: number, canCollect: boolean, out: number[], pickupRadius = 0.85): void {
     this.time += dt;
     out.length = 0;
     for (const c of this.coins) {
@@ -234,7 +304,16 @@ export class Level {
       }
       c.obj.rotation.y += dt * 2.6;
       c.obj.position.y = 0.42 + Math.sin(this.time * 2.4 + c.phase) * 0.09;
-      if (canCollect && Math.hypot(c.x - playerX, c.z - playerZ) < 0.85) {
+      const d = Math.hypot(c.x - playerX, c.z - playerZ);
+      // Coin Magnet: coins inside the pickup radius fly to the player.
+      if (canCollect && d < pickupRadius && d > 0.5) {
+        const pull = Math.min(1, dt * 9);
+        c.x += (playerX - c.x) * pull;
+        c.z += (playerZ - c.z) * pull;
+        c.obj.position.x = c.x;
+        c.obj.position.z = c.z;
+      }
+      if (canCollect && d < Math.min(0.85, pickupRadius)) {
         c.taken = true;
         out.push(c.index);
       }
@@ -251,6 +330,7 @@ export class Level {
   dispose(): void {
     for (const g of this.guards) g.dispose();
     this.searchlight?.dispose();
+    this.hazards.dispose();
     this.wall.dispose();
     const mat = this.marker.material as THREE.MeshBasicMaterial;
     mat.map?.dispose();

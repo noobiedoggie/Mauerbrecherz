@@ -202,6 +202,22 @@ export class Effects {
     }
   }
 
+  /** Mine explosion: a column of dark smoke, flying dirt and a shock ring. */
+  explosion(point: THREE.Vector3): void {
+    for (let i = 0; i < 26; i++) {
+      this.vel.set((Math.random() - 0.5) * 5, 3 + Math.random() * 5, (Math.random() - 0.5) * 5);
+      this.v.set(point.x + (Math.random() - 0.5) * 0.6, 0.3 + Math.random() * 0.5, point.z + (Math.random() - 0.5) * 0.6);
+      this.dust.spawn(this.v, this.vel, 0.8 + Math.random() * 0.9, 0.9 + Math.random() * 0.8);
+    }
+    for (let i = 0; i < 40; i++) {
+      this.vel.set((Math.random() - 0.5) * 11, 4 + Math.random() * 8, (Math.random() - 0.5) * 11);
+      this.v.set(point.x, 0.3, point.z);
+      this.debris.spawn(this.v, this.vel, 0.08 + Math.random() * 0.16, 0.9 + Math.random() * 0.6);
+    }
+    this.lastRing = -1;
+    this.noiseRing(point.x, point.z, 7);
+  }
+
   /** Expanding ring on the ground that shows how far a punch was heard. */
   noiseRing(x: number, z: number, radius: number): void {
     if (this.clock - this.lastRing < 0.3) return; // the jackhammer would spam them

@@ -80,7 +80,7 @@ export const TUNING = {
     /** Cone colour while calm / alerted. */
     coneColor: 0xffc234,
     coneAlertColor: 0xe8462e,
-    coneOpacity: 0.35,
+    coneOpacity: 0.26,
   },
 
   guard: {
@@ -126,6 +126,28 @@ export const TUNING = {
     rewardPerLevel: 150,
     /** Bonus factor when re-playing a wall that is already down. */
     replayRewardFactor: 0.5,
+  },
+
+  /** Evening light. Colours are hex, intensities in three.js units. */
+  evening: {
+    /** Sky dome, bottom (horizon) to top. */
+    skyHorizon: 0xffb36b,
+    skyMiddle: 0xd47f86,
+    skyTop: 0x3a4278,
+    /** Fog fades far things into the dusk haze. */
+    fogColor: 0xd99a86,
+    fogNear: 55,
+    fogFar: 150,
+    /** Hemisphere light: cool blue sky fill, warm ground bounce (cool shadows, warm light). */
+    hemiSky: 0xa9b8f0,
+    hemiGround: 0x5a4636,
+    hemiIntensity: 1.25,
+    /** Low golden sun (long shadows). Offset = direction the light comes from. */
+    sunColor: 0xffc58a,
+    sunIntensity: 2.7,
+    sunOffset: [-19, 11, 11] as [number, number, number],
+    /** Overall brightness after tone mapping. */
+    exposure: 1.18,
   },
 
   render: {

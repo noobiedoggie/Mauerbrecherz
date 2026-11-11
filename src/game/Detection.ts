@@ -18,6 +18,8 @@ export interface Target {
   hidden: boolean;
   /** Currently hitting the wall. */
   punching: boolean;
+  /** Detection fill multiplier from the Shadow Suit upgrade (1 = none). */
+  stealth: number;
 }
 
 const FAN_SEGMENTS = 22;
@@ -62,6 +64,8 @@ export class VisionCone {
       side: THREE.DoubleSide,
       toneMapped: false,
       fog: false,
+      // Evening: the beam adds light to the sand instead of painting over it.
+      blending: THREE.AdditiveBlending,
     });
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.frustumCulled = false; // vertices move every frame

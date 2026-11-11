@@ -1,6 +1,8 @@
 import { Preferences } from '@capacitor/preferences';
 import { LEVEL_COUNT } from '../config/levels';
 import { TOOLS } from '../config/tools';
+import { UPGRADES } from '../config/upgrades';
+import type { UpgradeId } from '../config/upgrades';
 
 /**
  * Save - coins, tools, unlocked walls and the damage on every wall.
@@ -37,6 +39,8 @@ export interface SaveData {
   /** Wall shown on the main menu. */
   currentLevel: number;
   levels: Record<number, LevelProgress>;
+  /** Character upgrade levels (0 = not bought). */
+  upgrades: Record<UpgradeId, number>;
   sound: boolean;
   vibration: boolean;
 }
@@ -53,9 +57,16 @@ export function freshSave(): SaveData {
     unlockedLevel: 1,
     currentLevel: 1,
     levels: {},
+    upgrades: freshUpgrades(),
     sound: true,
     vibration: true,
   };
+}
+
+function freshUpgrades(): Record<UpgradeId, number> {
+  const out = {} as Record<UpgradeId, number>;
+  for (const u of UPGRADES) out[u.id] = 0;
+  return out;
 }
 
 /** Make sure a loaded blob has every field and sane values. */
@@ -73,6 +84,12 @@ function sanitize(raw: Partial<SaveData> | null): SaveData {
   for (const key of Object.keys(data.levels)) {
     data.levels[Number(key)] = { ...freshProgress(), ...data.levels[Number(key)] };
   }
+  const ups = freshUpgrades();
+  for (const u of UPGRADES) {
+    const v = Math.floor(Number((data.upgrades as Partial<Record<UpgradeId, number>> | undefined)?.[u.id]) || 0);
+    ups[u.id] = Math.max(0, Math.min(u.prices.length, v));
+  }
+  data.upgrades = ups;
   data.sound = data.sound !== false;
   data.vibration = data.vibration !== false;
   return data;

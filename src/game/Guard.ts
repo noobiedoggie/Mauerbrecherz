@@ -90,6 +90,8 @@ export class Guard {
   private avoidCount = 0;
   private lastState: AlertState = 'calm';
   private frozen = false;
+  /** Frozen because the player was caught (shows "!"), not because the wall fell. */
+  private alarmed = false;
   private icon: THREE.Sprite;
   private iconMat: THREE.SpriteMaterial;
   private iconPop = 0;
@@ -133,6 +135,7 @@ export class Guard {
     this.lastState = 'calm';
     this.investigateT = 0;
     this.frozen = false;
+    this.alarmed = false;
     this.icon.visible = false;
     this.cone.setAlert(0);
     this.body.resetPose();
@@ -140,17 +143,18 @@ export class Guard {
   }
 
   /** A punch landed at (nx, nz) and this guard is inside its noise radius. */
-  hearNoise(nx: number, nz: number): void {
+  hearNoise(nx: number, nz: number, seconds = TUNING.guard.investigateTime): void {
     if (this.frozen) return;
     this.noiseX = nx;
     this.noiseZ = nz;
-    this.investigateT = TUNING.guard.investigateTime;
+    this.investigateT = Math.max(this.investigateT, seconds);
     if (this.mode !== 'watch') this.mode = 'investigate';
   }
 
   /** Stop everything and stare at the player (used on the Spotted screen). */
-  freeze(lookX: number, lookZ: number): void {
+  freeze(lookX: number, lookZ: number, alarmed = true): void {
     this.frozen = true;
+    this.alarmed = alarmed;
     this.lastSeenX = lookX;
     this.lastSeenZ = lookZ;
   }
@@ -175,7 +179,7 @@ export class Guard {
     // ---- 1. look ----
     if (target) {
       const seen = this.cone.sees(target, colliders, this.x, this.z);
-      this.meter.update(dt, seen, target.punching);
+      this.meter.update(dt, seen, target.punching, target.stealth);
       if (seen >= 0) {
         this.lastSeenX = target.x;
         this.lastSeenZ = target.z;
@@ -187,6 +191,8 @@ export class Guard {
       if (rising) {
         this.onStateChange(state);
         this.iconPop = 1;
+        // Surprised little jump ("?") or a big startled one ("!").
+        this.body.jump(state === 'alert' ? 3.4 : 1.8);
       }
       this.lastState = state;
     }
@@ -300,10 +306,10 @@ export class Guard {
     // "?" over suspicious (or while checking a noise), "!" over alert.
     const state = this.meter.state;
     const icons = getIcons();
-    const show = state !== 'calm' || this.mode === 'investigate' || this.frozen;
+    const show = this.frozen ? this.alarmed : state !== 'calm' || this.mode === 'investigate';
     this.icon.visible = show;
     if (show) {
-      const alarm = state === 'alert' || this.frozen;
+      const alarm = state === 'alert' || this.alarmed;
       const map = alarm ? icons.alarm : icons.question;
       if (this.iconMat.map !== map) {
         this.iconMat.map = map;
@@ -313,7 +319,7 @@ export class Guard {
       const s = 0.95 * (1 + this.iconPop * 0.5);
       this.icon.scale.set(s, s, 1);
     }
-    this.cone.setAlert(this.frozen ? 1 : this.meter.heat);
+    this.cone.setAlert(this.alarmed ? 1 : this.frozen ? 0 : this.meter.heat);
   }
 
   /** Copy position/heading to the model and rebuild the flashlight cone. */
@@ -378,7 +384,7 @@ export class Searchlight {
     if (target && !frozen) {
       // A hidden player is never revealed by the far-away tower.
       const seen = this.cone.sees(target, colliders, 1e6, 1e6);
-      this.meter.update(dt, seen, target.punching, this.fillMul);
+      this.meter.update(dt, seen, target.punching, this.fillMul * target.stealth);
       const state = this.meter.state;
       if (state !== this.lastState) {
         const rising = (state === 'suspicious' && this.lastState === 'calm') || state === 'alert';

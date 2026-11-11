@@ -45,6 +45,8 @@ export class Player {
   exiting = false;
 
   tool: ToolDef;
+  /** Walk speed multiplier from the SPRINT upgrade. */
+  speedMul = 1;
   /** Called at the exact moment a punch lands on the wall. */
   onHit: (tool: ToolDef) => void = () => {};
   /** Called when a punch is thrown but nothing is in reach. */
@@ -100,10 +102,12 @@ export class Player {
     if (this.caught || this.exiting) return false;
     if (this.hidden) {
       this.hidden = false;
+      this.body.jump(1.8);
       return true;
     }
     if (!this.canHide) return false;
     this.hidden = true;
+    this.body.kick(-1.4);
     this.cycleT = -1;
     this.punching = false;
     return true;
@@ -162,7 +166,7 @@ export class Player {
       // Moving always wins over punching: running away must feel instant.
       this.cycleT = -1;
       const throttle = Math.min(1, (mag - P.deadZone) / (1 - P.deadZone));
-      const v = P.speed * (0.35 + 0.65 * throttle);
+      const v = P.speed * this.speedMul * (0.35 + 0.65 * throttle);
       const vx = (input.moveX / mag) * v;
       const vz = (-input.moveY / mag) * v; // stick up = towards the wall = -Z
       const fromX = this.x;
@@ -205,11 +209,17 @@ export class Player {
           this.cycleT = -1;
         } else if (this.cycleT >= period) {
           this.cycleT -= period;
-          if (this.inPunchRange) this.onHit(tool);
+          if (this.inPunchRange) {
+            this.body.kick(-0.5);
+            this.onHit(tool);
+          }
         }
       } else {
         if (!this.hitDone && this.cycleT >= tool.windup + tool.strike) {
           this.hitDone = true;
+          // Every hit bounces the body: a squash, and a hop for the big swings.
+          this.body.kick(tool.style === 'overhead' ? -2.6 : tool.style === 'swing' ? -1.8 : -1.2);
+          if (tool.style === 'overhead') this.body.jump(1.4);
           if (this.cycleInRange && this.inPunchRange) this.onHit(tool);
           else this.onWhiff();
         }
@@ -258,7 +268,10 @@ export class Player {
     const dz = tz - this.z;
     const dist = Math.hypot(dx, dz);
     if (dist < 0.12) {
-      if (this.exitStage === 0) this.exitStage = 1;
+      if (this.exitStage === 0) {
+        this.exitStage = 1;
+        this.body.jump(3.4); // happy jump, then through the hole
+      }
       this.speed = this.exitStage === 1 && this.z > -5 ? speed : 0;
     } else {
       const step = Math.min(dist, speed * dt);

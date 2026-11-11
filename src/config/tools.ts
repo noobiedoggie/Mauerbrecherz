@@ -6,6 +6,8 @@
  * numbers to balance first.
  */
 
+import type { ImpactKind } from '../game/Audio';
+
 export type HapticKind = 'light' | 'medium' | 'heavy' | 'continuous';
 
 /** How the punch is animated. */
@@ -39,8 +41,8 @@ export interface ToolDef {
   haptic: HapticKind;
   /** Camera shake per hit, in metres. Heavier tools shake more. */
   shake: number;
-  /** Base frequency (Hz) of the punch thud. Lower = heavier. */
-  thudHz: number;
+  /** Which impact sound the tool makes (recipes in game/Audio.ts). */
+  sound: ImpactKind;
   style: PunchStyle;
   /** Punch timeline in seconds. windup + strike + recover must be <= 1 / hitsPerSec. */
   windup: number;
@@ -76,7 +78,7 @@ export const TOOLS: ToolDef[] = [
     unlockWall: 0,
     haptic: 'light',
     shake: 0.05,
-    thudHz: 170,
+    sound: 'wraps',
     style: 'jab',
     windup: 0,
     strike: 0.08,
@@ -98,7 +100,7 @@ export const TOOLS: ToolDef[] = [
     unlockWall: 1,
     haptic: 'light',
     shake: 0.07,
-    thudHz: 210,
+    sound: 'brass',
     style: 'jab',
     windup: 0,
     strike: 0.08,
@@ -120,7 +122,7 @@ export const TOOLS: ToolDef[] = [
     unlockWall: 2,
     haptic: 'medium',
     shake: 0.11,
-    thudHz: 140,
+    sound: 'hammer',
     style: 'swing',
     windup: 0.14,
     strike: 0.09,
@@ -143,7 +145,7 @@ export const TOOLS: ToolDef[] = [
     unlockWall: 4,
     haptic: 'heavy',
     shake: 0.24,
-    thudHz: 82,
+    sound: 'sledge',
     style: 'overhead',
     windup: 0.34,
     strike: 0.12,
@@ -165,7 +167,7 @@ export const TOOLS: ToolDef[] = [
     unlockWall: 6,
     haptic: 'medium',
     shake: 0.2,
-    thudHz: 110,
+    sound: 'pick',
     style: 'overhead',
     windup: 0.4,
     strike: 0.12,
@@ -187,7 +189,7 @@ export const TOOLS: ToolDef[] = [
     unlockWall: 9,
     haptic: 'continuous',
     shake: 0.13,
-    thudHz: 95,
+    sound: 'jack',
     style: 'jackhammer',
     windup: 0,
     strike: 0,

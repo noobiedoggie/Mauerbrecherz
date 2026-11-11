@@ -4,7 +4,9 @@ import { Capacitor, SystemBars } from '@capacitor/core';
 import { LEVEL_COUNT, getLevel } from '../config/levels';
 import { TOOLS, getTool } from '../config/tools';
 import type { ToolDef } from '../config/tools';
-import { COLORS, TUNING } from '../config/tuning';
+import { TUNING } from '../config/tuning';
+import { getUpgrade } from '../config/upgrades';
+import type { UpgradeId } from '../config/upgrades';
 import { UI } from '../ui/UI';
 import type { UIActions, WallDownInfo } from '../ui/UI';
 import { Assets } from './Assets';
@@ -30,7 +32,9 @@ import { SEGMENT_WIDTH } from './Wall';
  */
 type State = 'loading' | 'menu' | 'playing' | 'paused' | 'caught' | 'won';
 
-const SUN_OFFSET = new THREE.Vector3(-13, 21, 16);
+const SUN_OFFSET = new THREE.Vector3(...TUNING.evening.sunOffset);
+
+export type CaughtBy = 'guard' | 'searchlight' | 'mine';
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -57,11 +61,12 @@ export class Game {
   private damageBank = 0;
   private endTimer = 0;
   private endStage = 0;
-  private caughtBySearchlight = false;
+  private caughtBy: CaughtBy = 'guard';
   private result: WallDownInfo | null = null;
   /** Where the shop's back button leads. */
   private shopFrom: 'menu' | 'spotted' = 'menu';
   private lastWhiffHint = -10;
+  private mineTip = false;
   /** Balancing aid: when true nobody can see the player (set from the console via __game). */
   debugInvisible = false;
   private clock = 0;
@@ -70,7 +75,8 @@ export class Game {
   private pixelRatio: number;
   private frameAvg = 16;
   private qualityTimer = 0;
-  private target: Target = { x: 0, z: 0, hidden: false, punching: false };
+  private target: Target = { x: 0, z: 0, hidden: false, punching: false, stealth: 1 };
+  private jackOn = false;
   private picked: number[] = [];
   private tmp = new THREE.Vector3();
 
@@ -82,12 +88,17 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap; // soft, filtered edges
 
-    this.scene.background = new THREE.Color(COLORS.paper);
-    this.scene.fog = new THREE.Fog(COLORS.paper, 46, 120);
+    // ---- evening: dusk sky, haze, low orange sun ----
+    const E = TUNING.evening;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = E.exposure;
+    this.scene.background = new THREE.Color(E.fogColor);
+    this.scene.fog = new THREE.Fog(E.fogColor, E.fogNear, E.fogFar);
+    this.scene.add(makeSky());
 
-    // ---- lighting: hemisphere fill + ONE warm, slightly low sun with shadows ----
-    this.scene.add(new THREE.HemisphereLight(0xfff6e6, 0x9a8f7c, 1.15));
-    this.sun = new THREE.DirectionalLight(0xffe2b8, 2.5);
+    // ---- lighting: hemisphere fill + ONE low sun with shadows ----
+    this.scene.add(new THREE.HemisphereLight(E.hemiSky, E.hemiGround, E.hemiIntensity));
+    this.sun = new THREE.DirectionalLight(E.sunColor, E.sunIntensity);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.setScalar(TUNING.render.shadowMapSize);
     const sc = this.sun.shadow.camera;
@@ -140,6 +151,10 @@ export class Game {
     this.player = new Player(this.assets, getTool(this.save.data.equipped));
     this.player.onHit = (tool) => this.onHit(tool);
     this.player.onWhiff = () => this.onWhiff();
+    this.player.body.onLand = (k) => {
+      if (this.state === 'playing' || this.state === 'won') this.audio.footstep(0.35 + 0.45 * k);
+    };
+    this.applyUpgrades();
     this.scene.add(this.player.body.root);
     this.ui.setToolIcon(this.player.tool);
 
@@ -228,6 +243,7 @@ export class Game {
       },
       reset: () => {
         void this.save.reset().then(() => {
+          this.applyUpgrades();
           this.player.setTool(getTool(this.save.data.equipped));
           this.ui.setToolIcon(this.player.tool);
           this.loadLevel(1);
@@ -247,6 +263,8 @@ export class Game {
       },
       menu: () => this.toMenuFresh(),
       buyTool: (id) => this.buyTool(id),
+      buyUpgrade: (id) => this.buyUpgrade(id),
+      shopTab: (tab) => this.ui.renderShop(this.save.data, tab),
       equipTool: (id) => this.equipTool(id),
       selectLevel: (id) => {
         if (id > this.save.data.unlockedLevel) return;
@@ -300,6 +318,34 @@ export class Game {
     this.equipTool(id);
   }
 
+  private buyUpgrade(id: UpgradeId): void {
+    const data = this.save.data;
+    const up = getUpgrade(id);
+    const level = data.upgrades[id];
+    const price = up.prices[level];
+    if (price === undefined || up.unlockWall > data.unlockedLevel || data.coins < price) {
+      this.audio.deny();
+      return;
+    }
+    data.coins -= price;
+    data.upgrades[id] = level + 1;
+    this.audio.buy();
+    this.effects.haptic('medium');
+    this.applyUpgrades();
+    void this.save.flush();
+    this.ui.renderShop(data, 'body');
+  }
+
+  /** Effect of an upgrade at its current level. */
+  private up(id: UpgradeId): number {
+    return getUpgrade(id).value(this.save.data.upgrades[id] ?? 0);
+  }
+
+  private applyUpgrades(): void {
+    if (this.player) this.player.speedMul = this.up('speed');
+    this.target.stealth = this.up('stealth');
+  }
+
   private equipTool(id: number): void {
     const data = this.save.data;
     if (!data.owned.includes(id)) return;
@@ -326,7 +372,7 @@ export class Game {
   private toggleHide(): void {
     if (this.state !== 'playing') return;
     if (this.player.toggleHide()) {
-      this.audio.click();
+      this.audio.rustle();
     } else {
       this.audio.deny();
       this.ui.hint('HIDE only works next to a crate, sandbags or a barrel.', 2.5);
@@ -352,8 +398,29 @@ export class Game {
       if (s === 'alert') this.audio.alarm();
       else this.audio.question();
     };
-    for (const g of level.guards) g.onStateChange = onState;
+    for (const g of level.guards) {
+      g.onStateChange = (st) => {
+        if (this.state !== 'playing') return;
+        const pan = Math.max(-1, Math.min(1, (g.x - this.player.x) / 9));
+        if (st === 'alert') this.audio.alarm(pan);
+        else this.audio.question(pan);
+      };
+      // Guard boots in the sand: you hear them before you see them.
+      g.body.onLand = (k) => {
+        if (this.state !== 'playing') return;
+        const d = Math.hypot(g.x - this.player.x, g.z - this.player.z);
+        const vol = Math.max(0, 1 - d / 11) * (0.5 + 0.5 * k);
+        this.audio.footstep(vol * 0.9, Math.max(-1, Math.min(1, (g.x - this.player.x) / 8)), true);
+      };
+    }
+    level.hazards.onExplode = (x, z) => this.onMine(x, z);
+    level.hazards.onTrip = (x, z) => this.onTrip(x, z);
+    level.hazards.onBeep = (x, _z, urgent) => this.audio.mineBeep(Math.max(-1, Math.min(1, (x - this.player.x) / 4)), urgent);
     if (level.searchlight) level.searchlight.onStateChange = onState;
+    if ((def.mines?.length || def.tripwires?.length) && this.save.data.upgrades.detector === 0 && def.id >= 11) {
+      // First minefield: point at the upgrade that helps.
+      this.mineTip = true;
+    }
 
     this.rig.setBounds(level.halfWidth, level.depth);
     this.player.spawn(def.start[0], def.start[1]);
@@ -363,7 +430,7 @@ export class Game {
   private showMenu(): void {
     this.state = 'menu';
     this.input.setEnabled(false);
-    this.audio.stopHum();
+    this.audio.stopAmbience();
     this.ui.clearHint();
     this.rig.setMode('menu');
     const def = getLevel(this.levelId);
@@ -392,15 +459,21 @@ export class Game {
     this.ui.show('hud');
     this.input.setEnabled(true);
     this.audio.unlock();
-    this.audio.startHum();
+    this.audio.startAmbience();
     if (def.hint) this.ui.hint(def.hint, 7);
     else this.ui.clearHint();
+    if (this.mineTip) {
+      this.mineTip = false;
+      window.setTimeout(() => this.state === 'playing' && this.ui.hint('Tip: the MINE SENSE upgrade (TOOLS > BODY) shows mines from further away.', 5), 7500);
+    }
   }
 
   private pause(): void {
     if (this.state !== 'playing') return;
     this.state = 'paused';
     this.input.setEnabled(false);
+    this.audio.setJackhammer(false);
+    this.jackOn = false;
     this.save.level(this.levelId).time = this.elapsed;
     void this.save.flush();
     this.ui.show('pause');
@@ -423,7 +496,8 @@ export class Game {
     if (wall.destroyed) return;
 
     const before = wall.hp;
-    const hit = wall.hit(tool.damage, this.player.x, impactHeight(tool));
+    const damage = Math.round(tool.damage * this.up('power'));
+    const hit = wall.hit(damage, this.player.x, impactHeight(tool));
     const dealt = before - wall.hp;
 
     // Economy: +1 coin per N damage.
@@ -442,10 +516,10 @@ export class Game {
     // Feedback: dust, number, shake, sound, vibration.
     const power = Math.min(1.6, tool.shake * 6);
     this.effects.hit(hit.point, power);
-    this.effects.popText(`-${tool.damage}`, hit.point, 'dmg');
+    this.effects.popText(`-${damage}`, hit.point, 'dmg');
     this.rig.shake(tool.shake);
     this.effects.haptic(tool.haptic);
-    this.audio.thud(tool.thudHz, power);
+    this.audio.impact(tool.sound, power);
     if (hit.firstHit) this.audio.crack();
     if (hit.fallen.length > 0) {
       for (const p of hit.fallen) this.effects.crumble(p);
@@ -457,9 +531,10 @@ export class Game {
     }
 
     // Noise: every guard inside the tool's radius comes to look.
-    this.effects.noiseRing(this.player.x, this.player.z, tool.noise);
+    const noise = tool.noise * this.up('silence');
+    this.effects.noiseRing(this.player.x, this.player.z, noise);
     for (const g of level.guards) {
-      if (Math.hypot(g.x - this.player.x, g.z - this.player.z) <= tool.noise) {
+      if (Math.hypot(g.x - this.player.x, g.z - this.player.z) <= noise) {
         g.hearNoise(this.player.x, this.player.z);
       }
     }
@@ -481,15 +556,40 @@ export class Game {
     this.attemptCoins += n;
   }
 
-  private onCaught(bySearchlight: boolean): void {
+  /** Stepped on a mine. */
+  private onMine(x: number, z: number): void {
+    if (this.state !== 'playing') return;
+    this.effects.explosion(this.tmp.set(x, 0.2, z));
+    this.audio.explosion();
+    this.rig.shake(0.55);
+    this.effects.buzz(600);
+    this.player.body.jump(5);
+    this.onCaught('mine');
+  }
+
+  /** Snapped a tripwire: siren, and every guard comes to look. */
+  private onTrip(x: number, z: number): void {
+    if (this.state !== 'playing') return;
+    const level = this.level!;
+    this.audio.tripwire();
+    this.effects.noiseRing(x, z, 30);
+    this.effects.buzz(200);
+    this.ui.flash();
+    this.ui.hint('TRIPWIRE! Every guard heard that. Hide!', 3);
+    for (const g of level.guards) g.hearNoise(x, z, 7);
+  }
+
+  private onCaught(by: CaughtBy): void {
     const level = this.level!;
     this.state = 'caught';
-    this.caughtBySearchlight = bySearchlight;
+    this.caughtBy = by;
     this.input.setEnabled(false);
     this.player.setCaught();
     for (const g of level.guards) g.freeze(this.player.x, this.player.z);
-    this.audio.caught();
-    this.audio.stopHum();
+    if (by !== 'mine') this.audio.caught();
+    this.audio.setJackhammer(false);
+    this.jackOn = false;
+    this.audio.stopAmbience();
     this.effects.buzz(350);
     this.rig.shake(0.3);
     this.ui.clearHint();
@@ -509,9 +609,11 @@ export class Game {
     this.state = 'won';
     this.input.setEnabled(false);
     this.player.startExit(level.targetX);
-    for (const g of level.guards) g.freeze(level.targetX, 0);
+    for (const g of level.guards) g.freeze(level.targetX, 0, false);
     this.audio.win();
-    this.audio.stopHum();
+    this.audio.setJackhammer(false);
+    this.jackOn = false;
+    this.audio.stopAmbience();
     this.effects.buzz(250);
     this.ui.clearHint();
 
@@ -631,7 +733,8 @@ export class Game {
 
     // ---- world ----
     level.wall.update(dt);
-    level.updateCoins(dt, player.x, player.z, playing, this.picked);
+    level.updateCoins(dt, player.x, player.z, playing, this.picked, this.up('magnet'));
+    level.hazards.update(dt, player.x, player.z, this.up('detector'), playing);
     for (const index of this.picked) {
       const prog = this.save.level(this.levelId);
       prog.coinsTaken |= 1 << index;
@@ -648,12 +751,19 @@ export class Game {
       const state: AlertState = detection >= TUNING.detection.alert ? 'alert' : detection >= TUNING.detection.suspicious ? 'suspicious' : 'calm';
       this.ui.setHud(Math.round((1 - level.wall.damage) * 100), this.save.data.coins, detection, state, this.elapsed, level.def.parTime);
       this.ui.setControls(player.inPunchRange, player.canHide, player.hidden);
-      if (caught) this.onCaught(bySearchlight);
+      if (caught) this.onCaught(bySearchlight ? 'searchlight' : 'guard');
+      this.audio.updateTension(detection / 100);
+      // Jackhammer motor runs while it is chiselling.
+      const jack = player.punching && player.tool.style === 'jackhammer';
+      if (jack !== this.jackOn) {
+        this.jackOn = jack;
+        this.audio.setJackhammer(jack);
+      }
     } else if (this.state === 'caught') {
       this.endTimer += dt;
       if (this.endStage === 0 && this.endTimer > 1.1) {
         this.endStage = 1;
-        this.ui.showSpotted(Math.round((this.attemptDamage / level.wall.maxHp) * 100), this.attemptCoins, this.caughtBySearchlight);
+        this.ui.showSpotted(Math.round((this.attemptDamage / level.wall.maxHp) * 100), this.attemptCoins, this.caughtBy);
       }
     } else if (this.state === 'won') {
       this.endTimer += dt;
@@ -727,3 +837,40 @@ export class Game {
 }
 
 const IDLE_INPUT = { moveX: 0, moveY: 0, punchHeld: false };
+
+/** Big inverted sphere with a vertical dusk gradient (drawn behind everything). */
+function makeSky(): THREE.Mesh {
+  const E = TUNING.evening;
+  const geo = new THREE.SphereGeometry(160, 24, 16);
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      horizon: { value: new THREE.Color(E.skyHorizon) },
+      middle: { value: new THREE.Color(E.skyMiddle) },
+      top: { value: new THREE.Color(E.skyTop) },
+    },
+    vertexShader: `
+      varying float vH;
+      void main() {
+        vH = normalize(position).y;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform vec3 horizon; uniform vec3 middle; uniform vec3 top;
+      varying float vH;
+      void main() {
+        float h = max(vH, 0.0);
+        vec3 c = mix(horizon, middle, smoothstep(0.0, 0.22, h));
+        c = mix(c, top, smoothstep(0.22, 0.75, h));
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  const sky = new THREE.Mesh(geo, mat);
+  sky.renderOrder = -10;
+  sky.frustumCulled = false;
+  // The sky follows the camera so it never clips.
+  sky.onBeforeRender = (_r, _s, camera) => sky.position.copy(camera.position);
+  return sky;
+}

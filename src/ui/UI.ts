@@ -1,9 +1,12 @@
 import { LEVELS, LEVEL_COUNT } from '../config/levels';
 import { TOOLS, toolStatLine } from '../config/tools';
 import type { ToolDef } from '../config/tools';
+import { UPGRADES } from '../config/upgrades';
+import type { UpgradeId } from '../config/upgrades';
 import { ASSET_BASE } from '../game/Assets';
 import type { AlertState } from '../game/Detection';
 import type { SaveData } from '../game/Save';
+import type { CaughtBy } from '../game/Game';
 import { ICONS } from './icons';
 import { SCREENS_HTML } from './screens';
 
@@ -32,11 +35,24 @@ export interface UIActions {
   next(): void;
   menu(): void;
   buyTool(id: number): void;
+  buyUpgrade(id: UpgradeId): void;
+  shopTab(tab: ShopTab): void;
   equipTool(id: number): void;
   selectLevel(id: number): void;
   /** Any button was pressed (click sound). */
   tap(): void;
 }
+
+export type ShopTab = 'tools' | 'body';
+
+const UPGRADE_ICONS: Record<UpgradeId, string> = {
+  speed: ICONS.boot,
+  power: ICONS.power,
+  stealth: ICONS.mask,
+  silence: ICONS.mute,
+  detector: ICONS.mine,
+  magnet: ICONS.magnet,
+};
 
 export interface WallDownInfo {
   level: number;
@@ -87,6 +103,12 @@ export class UI {
           break;
         case 'equip':
           this.actions.equipTool(id);
+          break;
+        case 'buyup':
+          this.actions.buyUpgrade(el.dataset.up as UpgradeId);
+          break;
+        case 'tab':
+          this.actions.shopTab(el.dataset.tab as ShopTab);
           break;
         case 'level':
           this.actions.selectLevel(id);
@@ -152,7 +174,8 @@ export class UI {
   // ---- menu ------------------------------------------------------------------
 
   setMenu(level: number, name: string, damagePct: number, coins: number): void {
-    this.text('menu-level', `LEVEL ${level}`);
+    this.text('menu-level', `WALL ${level}`);
+    this.text('hud-wall-label', `WALL ${level}`);
     this.text('menu-wall', `WALL ${level} · ${damagePct}% DOWN`);
     this.text('menu-name', name);
     this.text('menu-coins', formatCoins(coins));
@@ -219,8 +242,42 @@ export class UI {
 
   // ---- shop --------------------------------------------------------------------
 
-  renderShop(save: SaveData): void {
+  private shopTab: ShopTab = 'tools';
+
+  renderShop(save: SaveData, tab: ShopTab = this.shopTab): void {
+    this.shopTab = tab;
     this.text('shop-coins', formatCoins(save.coins));
+    this.el('tab-tools').classList.toggle('on', tab === 'tools');
+    this.el('tab-body').classList.toggle('on', tab === 'body');
+    if (tab === 'body') {
+      this.text('shop-sub', 'Upgrade your body. Every level stays bought forever.');
+      this.el('shop-list').innerHTML = UPGRADES.map((u) => {
+        const level = save.upgrades[u.id] ?? 0;
+        const max = u.prices.length;
+        const price = u.prices[level];
+        const locked = u.unlockWall > save.unlockedLevel;
+        const pips = Array.from({ length: max }, (_, i) => `<i class="${i < level ? 'on' : ''}"></i>`).join('');
+        let action: string;
+        if (level >= max) action = `<span class="pill ink">MAX</span>`;
+        else if (locked) action = `<span class="lockline">${ICONS.lock}<b>WALL ${u.unlockWall}</b></span>`;
+        else
+          action = `<button class="btn btn-yellow buy${save.coins < price ? ' poor' : ''}" data-act="buyup" data-up="${u.id}">${ICONS.coin}${formatCoins(price)}</button>`;
+        const now = level > 0 ? u.label(level) : 'NOT BOUGHT';
+        const next = level < max ? ` → ${u.label(level + 1)}` : '';
+        return `
+        <article class="card upgrade${level >= max ? ' maxed' : ''}${locked ? ' locked' : ''}">
+          <div class="up-icon">${UPGRADE_ICONS[u.id]}</div>
+          <div class="card-body">
+            <h3>${u.name}</h3>
+            <div class="pips">${pips}</div>
+            <div class="label">${now}${next}</div>
+          </div>
+          <div class="card-action">${action}</div>
+        </article>`;
+      }).join('');
+      return;
+    }
+    this.text('shop-sub', 'Louder tools break the wall faster, but guards hear them from further away. Tap an owned tool to equip it.');
     const cards = TOOLS.map((t) => {
       const owned = save.owned.includes(t.id);
       const equipped = save.equipped === t.id;
@@ -284,16 +341,27 @@ export class UI {
 
   // ---- end screens ---------------------------------------------------------------
 
-  showSpotted(damagePct: number, coins: number, bySearchlight: boolean): void {
+  showSpotted(damagePct: number, coins: number, by: CaughtBy): void {
     this.text('sp-damage', `+${damagePct}%`);
     this.text('sp-coins', `+${formatCoins(coins)}`);
-    this.text(
-      'sp-text',
-      bySearchlight
-        ? 'The searchlight caught you. Your hole stays, so come back and finish it.'
-        : "The guard's flashlight caught you. Your hole stays, so come back and finish it.",
-    );
+    const text: Record<CaughtBy, string> = {
+      guard: "The guard's flashlight caught you. Your hole stays, so come back and finish it.",
+      searchlight: 'The searchlight caught you. Your hole stays, so come back and finish it.',
+      mine: 'You stepped on a mine. Your hole stays. Watch for the red blink next time.',
+    };
+    this.text('sp-text', text[by]);
+    this.text('sp-stamp', by === 'mine' ? 'BOOM!' : 'SPOTTED!');
+    (this.el('sp-icon') as HTMLImageElement).src = `${ASSET_BASE}ui_icons/icon_${by === 'mine' ? 'Player' : 'Guard'}.png`;
+    this.el('sp-icon').closest('section')!.dataset.by = by;
     this.show('spotted');
+  }
+
+  /** Red screen flash (tripwire). */
+  flash(): void {
+    const el = this.el('flash');
+    el.classList.remove('on');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('on');
   }
 
   showWallDown(info: WallDownInfo): void {

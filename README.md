@@ -2,8 +2,15 @@
 
 Punch through. Don't get seen.
 
-A stealth game for Android: punch a hole through one segment of the Berlin Wall while guards
-patrol with flashlights. Built with Vite, TypeScript and Three.js, and packaged with Capacitor.
+A stealth game for Android, set at dusk: punch a hole through one segment of the Berlin Wall
+while guards patrol with flashlights. Built with Vite, TypeScript and Three.js, and packaged with Capacitor.
+
+- 20 walls. From wall 11 there are buried mines (step on one and the attempt is over) and
+  tripwires (a siren calls every guard).
+- 6 tools and 6 body upgrades (speed, damage, stealth, quieter hits, mine sense, coin magnet).
+- Bouncy procedural animation: characters hop, squash and stretch, and their parts wobble on springs.
+- All sounds are synthesised at runtime: concrete impacts per tool, footsteps in the sand,
+  evening wind and crickets, guard whistles, a heartbeat when you are being spotted.
 
 ## Build a debug APK
 
@@ -38,16 +45,18 @@ src/
   main.ts                  entry point, fonts
   config/
     tuning.ts              all global balance and feel numbers (speeds, detection, camera, economy)
-    tools.ts               the six tools: damage, speed, noise, price, unlock, animation
-    levels.ts              the ten walls: HP, guards, routes, cover, coins, searchlight
+    tools.ts               the six tools: damage, speed, noise, price, unlock, animation, sound
+    upgrades.ts            the six body upgrades: prices and effect per level
+    levels.ts              the twenty walls: HP, guards, routes, cover, coins, searchlight, mines, tripwires
   game/
     Game.ts                renderer, game states, wiring, main loop
     Level.ts               builds a level's scene from its config
     Player.ts              movement, punching, hiding
     Guard.ts               patrol, investigate, vision cone, searchlight
     Wall.ts                breakable segment: fracture swap, chunk removal, rubble, decals
+    Hazards.ts             mines, tripwires and warning signs
     Tools.ts               tool attachment and punch poses
-    FloatingBody.ts        procedural animation for the six floating body parts
+    FloatingBody.ts        bouncy procedural animation (hops, squash/stretch, spring-lagged parts)
     Detection.ts           vision cones and the 0-100 detection meter
     Collision.ts           2D collision and line of sight
     Input.ts               floating joystick, PUNCH, HIDE, tool button, keyboard
@@ -60,7 +69,7 @@ src/
     UI.ts                  screen logic
     screens.ts             screen HTML
     icons.ts               inline SVG icons
-    styles.css             brutalist styling
+    styles.css             "Dusk Ops" styling (dark panels, cut corners, hazard stripes)
 ```
 
 ## Balancing
@@ -71,6 +80,9 @@ Every number you are likely to tune is in `src/config/`, and each one has a comm
   Time to break a wall is `wallHp / (damage * hitsPerSec)`.
 - **Walls** (`levels.ts`): `wallHp`, `guardSpeed`, guard `path` loops, `cover`, `parTime` and `searchlight.period`.
 - **Detection** (`tuning.ts`): `fillNear`, `fillFar`, `drain` and `punchMultiplier` set how forgiving the guards are.
+- **Evening light** (`tuning.ts` → `evening`): sky colours, sun colour/angle, fog and exposure.
+- **Upgrades** (`upgrades.ts`): prices and the effect of each level.
+- **Animation feel** (`game/FloatingBody.ts` → `PLAYER_STYLE`, `GUARD_STYLE`): hop height, squash, spring stiffness.
 
 Open the game with `?debug` to get `__game` in the console. `__game.debugState()` shows the live
 state, and `__game.debugInvisible = true` turns detection off while you test layouts.
